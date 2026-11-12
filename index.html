@@ -223,10 +223,11 @@ function restoreFields(snap) {
     });
 }
 
-function render() {
+function render(force) {
+    if (!force && S.screen === 'case' && S.tab === 'settings' && S.settingsShown) return;
     if (S.tab === 'settings') {
         const a = document.activeElement;
-        if (a && a.id && /^(schMin-|schHr-|schDay-|schStart-|outcomeInput)/.test(a.id)) return;
+        if (!force && a && a.id && /^(schMin-|schHr-|schDay-|schStart-|outcomeInput)/.test(a.id)) return;
     }
     const snap = snapshotFields();
     const root = document.getElementById('root');
@@ -234,6 +235,7 @@ function render() {
     else if (S.screen === 'case' && S.caseId) root.innerHTML = viewCase();
     else root.innerHTML = viewHome();
     restoreFields(snap);
+    S.settingsShown = (S.screen === 'case' && S.tab === 'settings');
     if (S.d && S.d.posts.length > S.lastPosts) {
         S.lastPosts = S.d.posts.length;
         const end = document.getElementById('transcriptEnd');
@@ -502,7 +504,7 @@ function openCase(id) {
 }
 function exitCase() {
     if (S.poll) { clearInterval(S.poll); S.poll = null; }
-    S.caseId = null; S.d = null; S.screen = 'home';
+    S.caseId = null; S.d = null; S.screen = 'home'; S.settingsShown = false;
     loadCases();
 }
 function doLogout() {
@@ -530,11 +532,12 @@ async function act(action, data) {
     const r = await rpc(action, Object.assign({ case: S.caseId }, data || {}), S.token);
     if (!r.ok) { S.err = r.error; render(); return r; }
     S.err = '';
+    S.settingsShown = false;
     await loadCase();
     return r;
 }
 
-function setTab(t) { S.tab = t; render(); }
+function setTab(t) { S.tab = t; S.settingsShown = false; render(); }
 
 async function doSay(kind) {
     const el = document.getElementById(kind === 'jury' ? 'juryInput' : kind === 'chat' ? 'chatInput' : 'sayInput');
@@ -814,6 +817,7 @@ function viewCase() {
                     ? '<button class="btn small red" onclick="act(\'delete_case\',{}).then(function(r){if(r.ok)exitCase()})">Tap again to delete this case</button>'
                     : '<button class="btn small ghost" onclick="doConfirm(\'delete\')">Delete this case</button>') + '</div>';
         }
+        h += '<div class="hint" style="text-align:center;margin-top:10px;opacity:.6">Build 12:30 AM update 3</div>';
     }
     if (S.tab === 'role') {
         h += '<div class="card"><div class="adminlabel">Your role</div><div class="etitle">' + esc(roleLabel(me.role, c.case_type)) + '</div>' +
