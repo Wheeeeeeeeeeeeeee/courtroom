@@ -669,7 +669,7 @@ function viewCase() {
                     h += '<div class="memberedit"><select onchange="doAssign(\'' + m.member_id + '\',this.value)">';
                     ROLE_ORDER.forEach(r => { h += '<option value="' + r + '"' + (r === m.role ? ' selected' : '') + '>' + roleLabel(r, c.case_type) + '</option>'; });
                     h += '</select><div class="hint" style="margin:8px 0">Only one Judge and one Defendant per case - assigning a new one moves the old one to Spectator.</div>' +
-                        '<textarea id="brief-' + m.member_id + '" data-brief="1" rows="2" placeholder="Notes for this role - only they will see them">' + esc(m.brief || '') + '</textarea>' +
+                        '<textarea id="brief-' + m.member_id + '" data-brief="1" rows="2" placeholder="Notes for their role">' + esc(m.brief || '') + '</textarea>' +
                         '<div class="sayrow" style="margin-top:8px"><button class="btn small gold" onclick="doSetBrief(\'' + m.member_id + '\')">Save notes</button>';
                     if (!m.is_me) {
                         h += S.confirm === 'kick' + m.member_id
