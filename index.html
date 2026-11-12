@@ -224,6 +224,10 @@ function restoreFields(snap) {
 }
 
 function render() {
+    if (S.tab === 'settings') {
+        const a = document.activeElement;
+        if (a && a.id && /^(schMin-|schHr-|schDay-|schStart-|outcomeInput)/.test(a.id)) return;
+    }
     const snap = snapshotFields();
     const root = document.getElementById('root');
     if (!S.token) root.innerHTML = viewAuth();
