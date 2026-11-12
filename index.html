@@ -558,9 +558,9 @@ function viewCase() {
     const c = d.case, me = d.me;
     const isJudge = me.role === 'judge';
     const canRun = c.is_creator || isJudge;
+    const floorBlock = c.floor && me.role !== c.floor && me.role !== 'judge' && !c.is_creator;
     const canSpeak = !floorBlock && me.role !== 'spectator' && me.role !== 'juror' && ['deliberation', 'verdict', 'closed'].indexOf(c.phase) < 0;
     const canObject = ['prosecutor', 'defense', 'defendant'].indexOf(me.role) >= 0 && c.phase === 'testimony';
-    const floorBlock = c.floor && me.role !== c.floor && me.role !== 'judge' && !c.is_creator;
     const canJury = me.role === 'juror';
     const juryVotes = d.jury || [];
 
