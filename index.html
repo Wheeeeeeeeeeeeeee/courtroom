@@ -103,6 +103,13 @@ textarea { resize: vertical; }
 .empty { text-align: center; color: #a89880; font-size: 14px; padding: 34px 0; }
 .dangerzone { border-color: #5c2a20; }
 .gavel { margin-right: 4px; }
+
+.avatar { width: 30px; height: 30px; border-radius: 50%; object-fit: cover; background: #2a2118; flex: 0 0 auto; }
+.avatar-ph { width: 30px; height: 30px; border-radius: 50%; background: #2a2118; display: inline-flex; align-items: center; justify-content: center; font-size: 13px; font-weight: 800; color: #d4a94e; flex: 0 0 auto; }
+.avatar-lg { width: 84px; height: 84px; border-radius: 50%; object-fit: cover; background: #2a2118; display: flex; align-items: center; justify-content: center; font-size: 34px; font-weight: 800; color: #d4a94e; }
+.post-img { max-width: 100%; border-radius: 12px; margin-top: 8px; display: block; }
+.imgprev { max-width: 140px; border-radius: 10px; margin-top: 8px; display: block; }
+.imgbtn { cursor: pointer; }
 </style>
 </head>
 <body>
@@ -166,9 +173,14 @@ let S = {
     poll: null,
     lastPosts: -1,
     notesInit: false,
+    homeTab: 'cases',
+    profile: null,
+    profileSaved: false,
+    pendingImg: '',
+    pendingImgFor: '',
 };
 
-const FIELD_IDS = ['authName', 'authPin', 'caseTitle', 'caseDesc', 'joinCode', 'sayInput', 'juryInput', 'notesInput', 'verdictNote'];
+const FIELD_IDS = ['authName', 'authPin', 'caseTitle', 'caseDesc', 'joinCode', 'sayInput', 'juryInput', 'notesInput', 'verdictNote', 'profAbout'];
 
 function snapshotFields() {
     const snap = {};
@@ -205,6 +217,60 @@ function render() {
     }
 }
 
+/* ---------------- images & profile ---------------- */
+
+function compressImage(file, maxDim, cb) {
+    const img = new Image();
+    const url = URL.createObjectURL(file);
+    img.onload = function() {
+        let w = img.width, h = img.height;
+        const scale = Math.min(1, maxDim / Math.max(w, h));
+        w = Math.max(1, Math.round(w * scale)); h = Math.max(1, Math.round(h * scale));
+        const cv = document.createElement('canvas'); cv.width = w; cv.height = h;
+        cv.getContext('2d').drawImage(img, 0, 0, w, h);
+        URL.revokeObjectURL(url);
+        let q = 0.8, out = cv.toDataURL('image/jpeg', q);
+        while (out.length > 650000 && q > 0.3) { q -= 0.15; out = cv.toDataURL('image/jpeg', q); }
+        cb(out);
+    };
+    img.onerror = function() { URL.revokeObjectURL(url); S.err = 'Could not read that image'; render(); };
+    img.src = url;
+}
+function pickImage(maxDim, cb) {
+    let inp = document.getElementById('imgPicker');
+    if (!inp) {
+        inp = document.createElement('input');
+        inp.type = 'file'; inp.accept = 'image/*'; inp.id = 'imgPicker'; inp.style.display = 'none';
+        document.body.appendChild(inp);
+    }
+    inp.onchange = function() {
+        const f = inp.files && inp.files[0];
+        inp.value = '';
+        if (f) compressImage(f, maxDim, cb);
+    };
+    inp.click();
+}
+function attachImg(which) {
+    pickImage(1024, function(data) { S.pendingImg = data; S.pendingImgFor = which; render(); });
+}
+async function loadProfile() {
+    const r = await rpc('get_profile', {}, S.token);
+    if (r.ok) { S.profile = r; if (S.screen === 'home') render(); }
+}
+function setHomeTab(t) { S.homeTab = t; S.err = ''; render(); }
+function pickAvatar() {
+    pickImage(256, function(data) { S.profile = Object.assign({}, S.profile, { avatar: data }); render(); });
+}
+async function doSaveProfile() {
+    const el = document.getElementById('profAbout');
+    const data = { about: el ? el.value.trim() : '' };
+    if (S.profile && typeof S.profile.avatar === 'string') data.avatar = S.profile.avatar;
+    const r = await rpc('update_profile', data, S.token);
+    if (!r.ok) { S.err = r.error; render(); return; }
+    S.err = ''; S.profileSaved = true; render();
+    setTimeout(() => { S.profileSaved = false; if (S.screen === 'home') render(); }, 2000);
+}
+
 /* ---------------- auth ---------------- */
 
 function viewAuth() {
@@ -235,6 +301,7 @@ async function doAuth() {
     store.set(r.token);
     S.token = r.token; S.name = r.name; S.err = '';
     loadCases();
+    loadProfile();
 }
 
 /* ---------------- home ---------------- */
@@ -242,9 +309,29 @@ async function doAuth() {
 function viewHome() {
     let h = '<div class="wrap">' +
         '<div class="topline"><div class="logo">&#9878; Courtroom</div><div class="spacer"></div>' +
-        '<div class="chip">' + esc(S.name || 'You') + '</div>' +
+        '<div class="chip">' + (S.profile && S.profile.avatar ? '<img class="avatar" style="width:20px;height:20px;vertical-align:-5px;margin-right:6px" src="' + esc(S.profile.avatar) + '">' : '') + esc(S.name || 'You') + '</div>' +
         '<button class="iconbtn" title="Log out" onclick="doLogout()">&#8599;</button></div>' +
-        '<div class="card"><div class="adminlabel">Open a new case</div>' +
+        '<div class="tabs">' +
+        '<div class="tab' + (S.homeTab !== 'profile' ? ' active' : '') + '" onclick="setHomeTab(\'cases\')">Cases</div>' +
+        '<div class="tab' + (S.homeTab === 'profile' ? ' active' : '') + '" onclick="setHomeTab(\'profile\')">Profile</div></div>';
+    if (S.homeTab === 'profile') {
+        if (!S.profile) return h + '<div class="empty">Loading your profile...</div></div>';
+        h += '<div class="card"><div class="adminlabel">Your profile</div>' +
+            '<div class="profrow">' +
+            (S.profile.avatar
+                ? '<img class="avatar-lg imgbtn" src="' + esc(S.profile.avatar) + '" onclick="pickAvatar()">'
+                : '<div class="avatar-lg imgbtn" onclick="pickAvatar()">' + esc((S.name || '?').charAt(0).toUpperCase()) + '</div>') +
+            '<div><div class="etitle">' + esc(S.name) + '</div><div class="hint">Tap the picture to change it.</div></div></div>' +
+            '<div style="height:14px"></div>' +
+            '<textarea id="profAbout" rows="3" maxlength="160" placeholder="About you - friends in your cases will see this (160 characters)">' + esc(S.profile.about || '') + '</textarea>' +
+            '<div style="height:14px"></div>' +
+            '<button class="btn gold" onclick="doSaveProfile()">' + (S.profileSaved ? 'Saved' : 'Save profile') + '</button>' +
+            (S.err ? '<div class="err" style="margin-top:10px">' + esc(S.err) + '</div>' : '') +
+            '</div>' +
+            '<div class="hint" style="text-align:center;margin-top:14px">Your picture and About line show next to your name in every case.</div>';
+        return h + '</div>';
+    }
+    h += '<div class="card"><div class="adminlabel">Open a new case</div>' +
         '<input id="caseTitle" placeholder="Case title - The People v. ...">' +
         '<div style="height:10px"></div>' +
         '<textarea id="caseDesc" rows="3" placeholder="The charges: what happened, who is accused, and of what?"></textarea>' +
@@ -296,7 +383,7 @@ async function doJoinCase() {
 }
 function openCase(id) {
     S.caseId = id; S.screen = 'case'; S.d = null; S.tab = 'court'; S.err = '';
-    S.lastPosts = -1; S.notesInit = false; S.openMember = null;
+    S.lastPosts = -1; S.notesInit = false; S.openMember = null; S.pendingImg = ''; S.pendingImgFor = '';
     loadCase();
     if (S.poll) clearInterval(S.poll);
     S.poll = setInterval(loadCase, 4000);
@@ -341,9 +428,11 @@ function setTab(t) { S.tab = t; render(); }
 async function doSay(kind) {
     const el = document.getElementById(kind === 'jury' ? 'juryInput' : 'sayInput');
     const text = el.value.trim();
-    if (!text) return;
-    const r = await act('post', { kind, text });
-    if (r.ok) el.value = '';
+    const which = kind === 'jury' ? 'jury' : 'say';
+    const img = (S.pendingImgFor === which && S.pendingImg) ? S.pendingImg : '';
+    if (!text && !img) return;
+    const r = await act('post', { kind, text, image: img });
+    if (r.ok) { el.value = ''; if (img) { S.pendingImg = ''; S.pendingImgFor = ''; } }
 }
 async function doSaveNotes() {
     const el = document.getElementById('notesInput');
@@ -393,9 +482,11 @@ function postHtml(p, meName, canRun) {
     }
     if (p.kind === 'ruling') return '<div class="post ruling"><span class="gavel">&#9878;</span> ' + esc(p.name) + ': ' + esc(p.text) + '</div>';
     return '<div class="post statement' + (p.name === meName ? ' mine' : '') + '">' +
-        '<div class="post-head"><span class="post-name">' + esc(p.name) + '</span>' +
+        '<div class="post-head">' + (p.avatar ? '<img class="avatar" style="width:22px;height:22px;margin-right:6px;vertical-align:-6px" src="' + esc(p.avatar) + '">' : '') +
+        '<span class="post-name">' + esc(p.name) + '</span>' +
         '<span class="post-role">' + esc((ROLES[p.role] || {}).label || '') + '</span></div>' +
-        '<div class="bodytext">' + esc(p.text) + '</div></div>';
+        (p.text ? '<div class="bodytext">' + esc(p.text) + '</div>' : '') +
+        (p.image ? '<img class="post-img" src="' + esc(p.image) + '">' : '') + '</div>';
 }
 
 function viewCase() {
@@ -454,7 +545,9 @@ function viewCase() {
 
         if (canSpeak || canObject) {
             h += '<div class="saybox"><textarea id="sayInput" rows="2" placeholder="' +
-                (c.phase === 'lobby' ? 'Talk before the trial starts...' : 'Address the court...') + '"></textarea><div class="sayrow">';
+                (c.phase === 'lobby' ? 'Talk before the trial starts...' : 'Address the court...') + '"></textarea>' +
+                (S.pendingImgFor === 'say' && S.pendingImg ? '<img class="imgprev" src="' + S.pendingImg + '">' : '') +
+                '<div class="sayrow"><button class="btn small ghost" onclick="attachImg(\'say\')">Photo</button>';
             if (canObject) h += '<button class="btn small red" onclick="doSay(\'objection\')">Objection!</button>';
             if (canSpeak) h += '<button class="btn small gold" onclick="doSay(\'statement\')">' +
                 (c.phase === 'openings' ? 'Opening statement' : c.phase === 'closings' ? 'Closing argument' : 'Say it') + '</button>';
@@ -477,7 +570,9 @@ function viewCase() {
             inRole.forEach(m => {
                 const open = S.openMember === m.member_id;
                 h += '<div class="memberrow"><div class="memberhead" onclick="toggleMember(\'' + m.member_id + '\')">' +
-                    '<div class="lbname">' + esc(m.name) + (m.is_me ? '<span class="you">you</span>' : '') + '</div>' +
+                    (m.avatar ? '<img class="avatar" src="' + esc(m.avatar) + '">' : '<div class="avatar-ph">' + esc(m.name.charAt(0).toUpperCase()) + '</div>') +
+                    '<div class="lbname">' + esc(m.name) + (m.is_me ? '<span class="you">you</span>' : '') +
+                    (m.about ? '<div class="hint" style="font-weight:400;margin-top:2px">' + esc(m.about) + '</div>' : '') + '</div>' +
                     '<span class="rolechip">' + ROLES[m.role].label + '</span>' +
                     (c.is_creator ? '<span class="editcaret">' + (open ? '&#9650;' : '&#9660;') + '</span>' : '') + '</div>';
                 if (c.is_creator && open) {
@@ -546,7 +641,8 @@ function viewCase() {
         h += '</div>';
         if (canJury && c.phase === 'deliberation') {
             h += '<div class="saybox"><textarea id="juryInput" rows="2" placeholder="Speak to your fellow jurors..."></textarea>' +
-                '<div class="sayrow"><button class="btn small gold" onclick="doSay(\'jury\')">Say it</button></div></div>';
+                (S.pendingImgFor === 'jury' && S.pendingImg ? '<img class="imgprev" src="' + S.pendingImg + '">' : '') +
+                '<div class="sayrow"><button class="btn small ghost" onclick="attachImg(\'jury\')">Photo</button><button class="btn small gold" onclick="doSay(\'jury\')">Say it</button></div></div>';
         }
     }
 
@@ -560,6 +656,7 @@ if (S.token) {
         if (!r.ok) { store.clear(); S.token = null; render(); return; }
         S.cases = r.cases;
         render();
+        loadProfile();
     });
 }
 render();
