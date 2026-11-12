@@ -203,12 +203,20 @@ function snapshotFields() {
     document.querySelectorAll('[data-brief]').forEach(el => {
         snap[el.id] = { v: el.value, f: document.activeElement === el, s: el.selectionStart, e: el.selectionEnd };
     });
+    document.querySelectorAll('[id^="schMin-"], [id^="schHr-"], [id^="schDay-"], [id^="schStart-"], #outcomeInput').forEach(el => {
+        snap[el.id] = { v: el.value, f: document.activeElement === el, s: el.selectionStart, e: el.selectionEnd };
+    });
+    ['autoOn', 'autoSpeak'].forEach(id => {
+        const el = document.getElementById(id);
+        if (el) snap[id] = { c: el.checked };
+    });
     return snap;
 }
 function restoreFields(snap) {
     Object.keys(snap).forEach(id => {
         const el = document.getElementById(id);
         if (el) {
+            if ('c' in snap[id]) { el.checked = snap[id].c; return; }
             el.value = snap[id].v;
             if (snap[id].f) { el.focus(); try { el.setSelectionRange(snap[id].s, snap[id].e); } catch (e) {} }
         }
