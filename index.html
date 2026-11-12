@@ -557,11 +557,13 @@ async function doSetSchedule() {
     const on = document.getElementById('autoOn').checked;
     const phases = {};
     ['openings', 'testimony', 'closings', 'deliberation'].forEach(p => {
-        const val = document.getElementById('schVal-' + p).value.trim();
-        const unit = document.getElementById('schUnit-' + p).value;
+        const mins = parseInt(document.getElementById('schMin-' + p).value, 10) || 0;
+        const hrs = parseInt(document.getElementById('schHr-' + p).value, 10) || 0;
+        const days = parseInt(document.getElementById('schDay-' + p).value, 10) || 0;
+        const total = mins + hrs * 60 + days * 1440;
         const start = document.getElementById('schStart-' + p).value;
         const ent = {};
-        if (val) { ent.value = val; ent.unit = unit; }
+        if (total > 0) { ent.value = String(total); ent.unit = 'minutes'; }
         if (start) { try { ent.start = new Date(start).toISOString(); } catch (e) {} }
         if (ent.value || ent.start) phases[p] = ent;
     });
@@ -762,13 +764,17 @@ function viewCase() {
                 '<div style="height:8px"></div>';
             SCHED_PHASES.forEach(sp => {
                 const ent = sched[sp[0]] || {};
+                const em = ent.minutes || 0;
+                const ed = Math.floor(em / 1440), eh = Math.floor((em % 1440) / 60), ei = em % 60;
                 h += '<div class="hint" style="margin-top:6px">' + sp[1] + '</div>' +
-                    '<div class="joinrow"><input id="schVal-' + sp[0] + '" type="number" min="1" max="43200" placeholder="Length" value="' + (ent.minutes || '') + '">' +
-                    '<select id="schUnit-' + sp[0] + '" style="width:auto"><option value="minutes">minutes</option><option value="hours">hours</option><option value="days">days</option></select></div>' +
+                    '<div class="joinrow">' +
+                    '<input id="schMin-' + sp[0] + '" type="number" min="0" max="43200" placeholder="Minutes" value="' + (ei || '') + '">' +
+                    '<input id="schHr-' + sp[0] + '" type="number" min="0" max="720" placeholder="Hours" value="' + (eh || '') + '">' +
+                    '<input id="schDay-' + sp[0] + '" type="number" min="0" max="30" placeholder="Days" value="' + (ed || '') + '"></div>' +
                     '<div class="joinrow" style="margin-top:4px"><input id="schStart-' + sp[0] + '" type="datetime-local" value="' + schedLocalInput(ent.start_at) + '" style="flex:1"></div>';
             });
             h += '<div class="joinrow" style="margin-top:8px"><button class="btn gold small joinbtn" onclick="doSetSchedule()">Save schedule</button></div>' +
-                '<div class="hint" style="margin-top:6px">For any phase set a length, a start date and time (your local time), or both - leave a phase blank and the judge moves it by hand. Jury deliberation can last days. The verdict is never forced: jurors vote or the judge decides, and the case never closes on its own.</div>';
+                '<div class="hint" style="margin-top:6px">For any phase set minutes, hours and days (they add together), a start date and time (your local time), or both - leave a phase blank and the judge moves it by hand. Jury deliberation can last days. The verdict is never forced: jurors vote or the judge decides, and the case never closes on its own.</div>';
             if (c.auto_on) {
                 const bits = [];
                 SCHED_PHASES.forEach(sp => {
