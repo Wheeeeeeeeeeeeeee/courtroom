@@ -147,6 +147,9 @@ const ROLES = {
     spectator: { label: 'Spectator', desc: 'Watches the trial from the gallery. Cannot speak in court - waiting for a role.' },
 };
 const ROLE_ORDER = ['judge', 'prosecutor', 'defense', 'defendant', 'witness', 'juror', 'spectator'];
+function roleLabel(r, ct) { if (r === 'prosecutor' && ct === 'civil') return 'Plaintiff'; return (ROLES[r] || {}).label || r; }
+function verdictWord(v, ct) { if (ct === 'civil') return v === 'guilty' ? 'FOR THE PLAINTIFF' : v === 'not_guilty' ? 'FOR THE DEFENDANT' : 'HUNG JURY'; return v === 'guilty' ? 'GUILTY' : v === 'not_guilty' ? 'NOT GUILTY' : 'HUNG JURY'; }
+function voteWord(v, ct) { if (ct === 'civil') return v === 'guilty' ? 'For the plaintiff' : 'For the defendant'; return v === 'guilty' ? 'Guilty' : 'Not guilty'; }
 const PHASES = ['lobby', 'openings', 'testimony', 'closings', 'deliberation', 'verdict', 'closed'];
 const PHASE_LABEL = {
     lobby: 'Setup', openings: 'Opening statements', testimony: 'Testimony & evidence',
@@ -255,7 +258,7 @@ function attachImg(which) {
 }
 async function loadProfile() {
     const r = await rpc('get_profile', {}, S.token);
-    if (r.ok) { S.profile = r; if (S.screen === 'home') render(); }
+    if (r.ok) { S.profile = r; S.name = r.name || S.name; loadFriends(); loadUpdates(); if (S.screen === 'home') render(); }
 }
 function setHomeTab(t) { S.homeTab = t; S.err = ''; render(); }
 function pickAvatar() {
@@ -270,6 +273,18 @@ async function doSaveProfile() {
     S.err = ''; S.profileSaved = true; render();
     setTimeout(() => { S.profileSaved = false; if (S.screen === 'home') render(); }, 2000);
 }
+
+async function loadFriends() { const r = await rpc('friends', {}, S.token); if (r.ok) S.friends = r; }
+async function loadUpdates() { const r = await rpc('get_updates', {}, S.token); if (r.ok) { S.updates = r.updates; if (S.screen === 'home') render(); } }
+async function doFriendReq() {
+    const el = document.getElementById('friendName');
+    const name = el.value.trim();
+    if (!name) return;
+    const r = await rpc('friend_request', { name }, S.token);
+    if (!r.ok) { S.err = r.error; } else { S.err = ''; el.value = ''; }
+    await loadFriends(); render();
+}
+async function doFriendResp(id, accept) { await rpc('friend_respond', { friend: id, accept: accept }, S.token); await loadFriends(); render(); }
 
 /* ---------------- auth ---------------- */
 
@@ -312,8 +327,16 @@ function viewHome() {
         '<div class="chip">' + (S.profile && S.profile.avatar ? '<img class="avatar" style="width:20px;height:20px;vertical-align:-5px;margin-right:6px" src="' + esc(S.profile.avatar) + '">' : '') + esc(S.name || 'You') + '</div>' +
         '<button class="iconbtn" title="Log out" onclick="doLogout()">&#8599;</button></div>' +
         '<div class="tabs">' +
-        '<div class="tab' + (S.homeTab !== 'profile' ? ' active' : '') + '" onclick="setHomeTab(\'cases\')">Cases</div>' +
-        '<div class="tab' + (S.homeTab === 'profile' ? ' active' : '') + '" onclick="setHomeTab(\'profile\')">Profile</div></div>';
+        '<div class="tab' + (S.homeTab !== 'profile' && S.homeTab !== 'updates' ? ' active' : '') + '" onclick="setHomeTab(\'cases\')">Cases</div>' +
+        '<div class="tab' + (S.homeTab === 'profile' ? ' active' : '') + '" onclick="setHomeTab(\'profile\')">Profile</div>' +
+        '<div class="tab' + (S.homeTab === 'updates' ? ' active' : '') + '" onclick="setHomeTab(\'updates\')">Updates</div></div>';
+    if (S.homeTab === 'updates') {
+        h += '<div class="card"><div class="adminlabel">Version updates</div>';
+        const ups = S.updates || [];
+        if (!ups.length) h += '<div class="hint">No updates posted yet.</div>';
+        ups.forEach(u2 => { h += '<div class="bodytext" style="margin-bottom:10px">' + esc(u2.body) + '</div>'; });
+        return h + '</div></div>';
+    }
     if (S.homeTab === 'profile') {
         if (!S.profile) return h + '<div class="empty">Loading your profile...</div></div>';
         h += '<div class="card"><div class="adminlabel">Your profile</div>' +
@@ -329,12 +352,37 @@ function viewHome() {
             (S.err ? '<div class="err" style="margin-top:10px">' + esc(S.err) + '</div>' : '') +
             '</div>' +
             '<div class="hint" style="text-align:center;margin-top:14px">Your picture and About line show next to your name in every case.</div>';
+        h += '<div class="card" style="margin-top:14px"><div class="adminlabel">Your trial record</div>';
+        const rec = (S.cases || []).filter(x => x.verdict || x.phase === 'verdict' || x.phase === 'closed');
+        if (!rec.length) h += '<div class="hint">No finished trials yet.</div>';
+        rec.forEach(x => {
+            h += '<div style="margin-bottom:10px"><div class="lbname">' + esc(x.title) + '</div><div class="hint">' +
+                esc(x.case_type === 'civil' ? 'Civil lawsuit' : 'Criminal trial') + ' - you were the ' + esc(roleLabel(x.role, x.case_type)) +
+                (x.verdict ? ' - ' + esc(verdictWord(x.verdict, x.case_type)) + (x.award ? ' - awarded $' + x.award + ' play money' : '') : ' - no verdict yet') +
+                (x.outcome ? ' - ' + esc(x.outcome) : '') + '</div></div>';
+        });
+        h += '</div>';
+        h += '<div class="card"><div class="adminlabel">Friends</div>' +
+            '<div class="joinrow"><input id="friendName" placeholder="Add a friend by name"><button class="btn gold small joinbtn" onclick="doFriendReq()">Add</button></div>';
+        const fr = S.friends || { friends: [], incoming: [], outgoing: [] };
+        if (fr.incoming && fr.incoming.length) {
+            h += '<div class="hint" style="margin:8px 0">Wants to be your friend:</div>';
+            fr.incoming.forEach(f2 => { h += '<div class="lbrow"><div class="lbname">' + esc(f2.name) + '</div><div><button class="btn small yes" onclick="doFriendResp(\'' + f2.user_id + '\',true)">Accept</button> <button class="btn small ghost" onclick="doFriendResp(\'' + f2.user_id + '\',false)">Decline</button></div></div>'; });
+        }
+        if (fr.outgoing && fr.outgoing.length) h += '<div class="hint" style="margin:8px 0">Waiting on: ' + esc(fr.outgoing.map(o => o.name).join(', ')) + '</div>';
+        if (fr.friends && fr.friends.length) fr.friends.forEach(f2 => { h += '<div class="lbrow">' + (f2.avatar ? '<img class="avatar" style="width:22px;height:22px;margin-right:6px;vertical-align:-6px" src="' + esc(f2.avatar) + '">' : '') + '<div class="lbname">' + esc(f2.name) + '</div></div>'; });
+        else if ((!fr.incoming || !fr.incoming.length) && (!fr.outgoing || !fr.outgoing.length)) h += '<div class="hint" style="margin-top:8px">No friends yet.</div>';
+        h += '</div>';
         return h + '</div>';
     }
     h += '<div class="card"><div class="adminlabel">Open a new case</div>' +
         '<input id="caseTitle" placeholder="Case title - The People v. ...">' +
         '<div style="height:10px"></div>' +
         '<textarea id="caseDesc" rows="3" placeholder="The charges: what happened, who is accused, and of what?"></textarea>' +
+        '<div style="height:10px"></div>' +
+        '<select id="caseType"><option value="criminal">Criminal trial</option><option value="civil">Civil lawsuit - sue for play money</option></select>' +
+        '<div style="height:10px"></div>' +
+        '<input id="caseClaim" type="number" min="1" max="1000000" placeholder="Amount sued for in play USD (civil only)">' +
         '<div style="height:14px"></div>' +
         '<button class="btn gold" onclick="doCreateCase()">Create the case</button></div>' +
         '<div class="card"><div class="adminlabel">Join a friend\'s case</div>' +
@@ -342,16 +390,24 @@ function viewHome() {
         '<button class="btn gold small joinbtn" onclick="doJoinCase()">Join</button></div>' +
         '<div class="hint">Ask whoever created the case for its 8-character code.</div></div>';
     if (S.err) h += '<div class="err card">' + esc(S.err) + '</div>';
+    h += '<div class="card"><div class="adminlabel">How a trial works</div>' +
+        '<div class="hint" style="line-height:1.8">' +
+        '1. Create a case or join one with a code. 2. The case creator assigns roles in the People tab. 3. The judge moves the trial through the phases with "Move to...":<br>' +
+        '<b>Lobby</b> - setup and roles. <b>Opening statements</b> - each side lays out its case. <b>Testimony</b> - witnesses speak, attorneys object. <b>Closing arguments</b> - final words to the jury. <b>Deliberation</b> - jurors talk privately in the jury room and vote; the verdict lands the moment every juror has voted (no jury: the judge decides). <b>Verdict</b> - the result is announced and the judge can record the outcome, like a play-money award or a stay-away rule. <b>Closed</b> - over and kept as a record.<br>' +
+        'Tips: Court is the formal transcript; Chat is table talk; the judge can give the floor to one side at a time; Photo attaches an image; auto-advance in Trial settings moves the talking phases on a timer; your Profile holds your avatar, friends and trial record.' +
+        '</div></div>';
     if (S.cases.length) {
         h += '<div class="adminlabel" style="margin-top:18px">Your cases</div>';
         S.cases.forEach(c => {
             h += '<div class="card casecard" onclick="openCase(\'' + c.id + '\')">' +
                 '<div class="etitle">' + esc(c.title) + '</div><div class="meta">' +
                 '<span class="phasechip">' + esc(PHASE_LABEL[c.phase] || c.phase) + '</span>' +
-                '<span class="rolechip">' + esc((ROLES[c.role] || {}).label || c.role) + '</span>' +
+                '<span class="rolechip">' + esc(roleLabel(c.role, c.case_type)) + '</span>' +
                 (c.is_creator ? '<span class="rolechip creator">Creator</span>' : '') +
-                (c.verdict ? '<span class="rolechip verdictset">Verdict in</span>' : '') +
-                '</div></div>';
+                (c.verdict ? '<span class="rolechip verdictset">' + esc(verdictWord(c.verdict, c.case_type)) + '</span>' : '') +
+                '</div>' +
+                ((c.verdict || c.outcome) ? '<div class="hint" style="margin-top:6px">' + esc(c.case_type === 'civil' ? 'Civil lawsuit' : 'Criminal trial') + (c.award ? ' - $' + c.award + ' awarded (play money)' : '') + (c.outcome ? ' - ' + c.outcome : '') + '</div>' : '') +
+                '</div>';
         });
     } else {
         h += '<div class="empty">No cases yet. Create one, or join a friend\'s with their code.</div>';
@@ -368,7 +424,9 @@ async function doCreateCase() {
     const title = document.getElementById('caseTitle').value.trim();
     const desc = document.getElementById('caseDesc').value.trim();
     if (!title) { S.err = 'Give the case a title'; render(); return; }
-    const r = await rpc('create_case', { title, description: desc }, S.token);
+    const ctype = document.getElementById('caseType').value;
+    const claim = document.getElementById('caseClaim').value.trim();
+    const r = await rpc('create_case', { title, description: desc, type: ctype, claim: claim }, S.token);
     if (!r.ok) { S.err = r.error; render(); return; }
     S.err = '';
     openCase(r.case_id);
@@ -426,9 +484,9 @@ async function act(action, data) {
 function setTab(t) { S.tab = t; render(); }
 
 async function doSay(kind) {
-    const el = document.getElementById(kind === 'jury' ? 'juryInput' : 'sayInput');
+    const el = document.getElementById(kind === 'jury' ? 'juryInput' : kind === 'chat' ? 'chatInput' : 'sayInput');
     const text = el.value.trim();
-    const which = kind === 'jury' ? 'jury' : 'say';
+    const which = kind === 'jury' ? 'jury' : kind === 'chat' ? 'chat' : 'say';
     const img = (S.pendingImgFor === which && S.pendingImg) ? S.pendingImg : '';
     if (!text && !img) return;
     const r = await act('post', { kind, text, image: img });
@@ -448,6 +506,11 @@ async function doSetBrief(memberId) {
     await act('set_brief', { member: memberId, brief: briefEl ? briefEl.value : '' });
 }
 function toggleMember(id) { S.openMember = S.openMember === id ? null : id; render(); }
+async function doSetAuto() {
+    const on = document.getElementById('autoOn').checked;
+    const minutes = document.getElementById('autoMin').value.trim();
+    await act('set_auto', { on, minutes });
+}
 
 function doConfirm(key) {
     S.confirm = key;
@@ -462,18 +525,18 @@ function copyCode() {
     setTimeout(() => { S.copied = false; render(); }, 2000);
 }
 
-function verdictBanner(verdict, note) {
-    const label = verdict === 'guilty' ? 'GUILTY' : verdict === 'not_guilty' ? 'NOT GUILTY' : 'HUNG JURY';
+function verdictBanner(verdict, note, ct, award) {
+    const label = verdictWord(verdict, ct) + (award ? ' - $' + award + ' play money awarded' : '');
     return '<div class="verdict ' + esc(verdict) + '"><div class="verdict-label">The verdict</div>' +
         '<div class="verdict-text">' + label + '</div>' +
         (note ? '<div class="verdict-note">' + esc(note) + '</div>' : '') + '</div>';
 }
 
-function postHtml(p, meName, canRun) {
+function postHtml(p, meName, canRun, ct) {
     if (p.kind === 'system') return '<div class="post system">' + esc(p.text) + '</div>';
     if (p.kind === 'objection') {
         let h = '<div class="post objection"><div class="post-head"><span class="post-name">' + esc(p.name) + '</span>' +
-            '<span class="post-role">' + esc((ROLES[p.role] || {}).label || '') + '</span></div>' +
+            '<span class="post-role">' + esc(roleLabel(p.role, ct)) + '</span></div>' +
             '<div class="objection-text">Objection! ' + esc(p.text) + '</div>';
         if (p.ruling) h += '<div class="ruling-tag ' + p.ruling + '">' + (p.ruling === 'sustained' ? 'Sustained' : 'Overruled') + '</div>';
         else if (canRun) h += '<div class="yn"><button class="btn small yes" onclick="act(\'rule\',{post:\'' + p.id + '\',ruling:\'sustained\'})">Sustain</button>' +
@@ -484,7 +547,7 @@ function postHtml(p, meName, canRun) {
     return '<div class="post statement' + (p.name === meName ? ' mine' : '') + '">' +
         '<div class="post-head">' + (p.avatar ? '<img class="avatar" style="width:22px;height:22px;margin-right:6px;vertical-align:-6px" src="' + esc(p.avatar) + '">' : '') +
         '<span class="post-name">' + esc(p.name) + '</span>' +
-        '<span class="post-role">' + esc((ROLES[p.role] || {}).label || '') + '</span></div>' +
+        '<span class="post-role">' + esc(roleLabel(p.role, ct)) + '</span></div>' +
         (p.text ? '<div class="bodytext">' + esc(p.text) + '</div>' : '') +
         (p.image ? '<img class="post-img" src="' + esc(p.image) + '">' : '') + '</div>';
 }
@@ -495,8 +558,9 @@ function viewCase() {
     const c = d.case, me = d.me;
     const isJudge = me.role === 'judge';
     const canRun = c.is_creator || isJudge;
-    const canSpeak = me.role !== 'spectator' && me.role !== 'juror' && ['deliberation', 'verdict', 'closed'].indexOf(c.phase) < 0;
-    const canObject = ['prosecutor', 'defense'].indexOf(me.role) >= 0 && c.phase === 'testimony';
+    const canSpeak = !floorBlock && me.role !== 'spectator' && me.role !== 'juror' && ['deliberation', 'verdict', 'closed'].indexOf(c.phase) < 0;
+    const canObject = ['prosecutor', 'defense', 'defendant'].indexOf(me.role) >= 0 && c.phase === 'testimony';
+    const floorBlock = c.floor && me.role !== c.floor && me.role !== 'judge' && !c.is_creator;
     const canJury = me.role === 'juror';
     const juryVotes = d.jury || [];
 
@@ -505,18 +569,28 @@ function viewCase() {
         '<div class="logo case-title">' + esc(c.title) + '</div><div class="spacer"></div>' +
         '<button class="chip codechip" onclick="copyCode()">' + (S.copied ? 'Copied!' : 'Code: ' + esc(c.code)) + '</button></div>';
 
-    h += '<div class="phaserow"><span class="phasechip big">' + esc(PHASE_LABEL[c.phase] || c.phase) + '</span>';
+    h += '<div class="phaserow"><span class="phasechip big">' + esc(PHASE_LABEL[c.phase] || c.phase) + '</span>' +
+        (c.case_type === 'civil' ? '<span class="rolechip" style="margin-left:8px">Civil lawsuit - $' + esc(String(c.claim)) + ' play money</span>' : '') +
+        (c.floor ? '<span class="rolechip" style="margin-left:8px">Floor: ' + esc(roleLabel(c.floor, c.case_type)) + '</span>' : '');
     if (canRun && c.phase !== 'closed') {
         h += '<select class="phaseselect" onchange="if(this.value)act(\'set_phase\',{phase:this.value})"><option value="">Move to...</option>';
         PHASES.filter(p => p !== c.phase).forEach(p => { h += '<option value="' + p + '">' + PHASE_LABEL[p] + '</option>'; });
         h += '</select>';
+        h += '<select class="phaseselect" onchange="act(\'set_floor\',{floor:this.value})" style="margin-left:6px">' +
+            '<option value="">Floor: open</option>' +
+            ['prosecutor', 'defense', 'defendant', 'witness'].map(r2 => '<option value="' + r2 + '"' + (c.floor === r2 ? ' selected' : '') + '>Floor: ' + roleLabel(r2, c.case_type) + ' only</option>').join('') +
+            '</select>';
     }
     h += '</div>';
 
-    if (c.verdict) h += verdictBanner(c.verdict, c.verdict_note);
+    if (c.verdict) {
+        h += verdictBanner(c.verdict, c.verdict_note, c.case_type, c.award);
+        if (c.outcome) h += '<div class="card"><div class="adminlabel">Recorded outcome</div><div class="bodytext">' + esc(c.outcome) + '</div></div>';
+    }
 
     h += '<div class="tabs">' +
         '<div class="tab' + (S.tab === 'court' ? ' active' : '') + '" onclick="setTab(\'court\')">Court</div>' +
+        '<div class="tab' + (S.tab === 'chat' ? ' active' : '') + '" onclick="setTab(\'chat\')">Chat</div>' +
         '<div class="tab' + (S.tab === 'people' ? ' active' : '') + '" onclick="setTab(\'people\')">People (' + d.members.length + ')</div>' +
         '<div class="tab' + (S.tab === 'role' ? ' active' : '') + '" onclick="setTab(\'role\')">My role</div>';
     if (canJury || c.is_creator) h += '<div class="tab' + (S.tab === 'jury' ? ' active' : '') + '" onclick="setTab(\'jury\')">Jury room' + (d.juror_count > 0 ? ' ' + juryVotes.length + '/' + d.juror_count : '') + '</div>';
@@ -527,7 +601,7 @@ function viewCase() {
     if (S.tab === 'court') {
         if (c.description) h += '<div class="card"><div class="adminlabel">The charges</div><div class="bodytext">' + esc(c.description) + '</div></div>';
         h += '<div class="transcript">';
-        d.posts.filter(p => p.kind !== 'jury').forEach(p => { h += postHtml(p, me.name, canRun); });
+        d.posts.filter(p => p.kind !== 'jury' && p.kind !== 'chat').forEach(p => { h += postHtml(p, me.name, canRun, c.case_type); });
         h += '<div id="transcriptEnd"></div></div>';
 
         if (c.phase === 'deliberation' && !c.verdict) {
@@ -537,8 +611,8 @@ function viewCase() {
             if (d.juror_count === 0 && canRun) {
                 h += '<div class="card"><div class="adminlabel">Decide the verdict</div>' +
                     '<input id="verdictNote" placeholder="A note on the decision (optional)">' +
-                    '<div class="yn"><button class="btn small yes" onclick="act(\'decide_verdict\',{verdict:\'guilty\',note:document.getElementById(\'verdictNote\').value})">Guilty</button>' +
-                    '<button class="btn small no" onclick="act(\'decide_verdict\',{verdict:\'not_guilty\',note:document.getElementById(\'verdictNote\').value})">Not guilty</button>' +
+                    '<div class="yn"><button class="btn small yes" onclick="act(\'decide_verdict\',{verdict:\'guilty\',note:document.getElementById(\'verdictNote\').value})">' + voteWord('guilty', c.case_type) + '</button>' +
+                    '<button class="btn small no" onclick="act(\'decide_verdict\',{verdict:\'not_guilty\',note:document.getElementById(\'verdictNote\').value})">' + voteWord('not_guilty', c.case_type) + '</button>' +
                     '<button class="btn small ghost" onclick="act(\'decide_verdict\',{verdict:\'hung\',note:document.getElementById(\'verdictNote\').value})">Hung</button></div></div>';
             }
         }
@@ -553,11 +627,27 @@ function viewCase() {
                 (c.phase === 'openings' ? 'Opening statement' : c.phase === 'closings' ? 'Closing argument' : 'Say it') + '</button>';
             h += '</div></div>';
         } else if (!c.verdict && c.phase !== 'deliberation' && c.phase !== 'closed') {
-            const msg = me.role === 'juror' ? 'Jurors listen during the trial. Your turn comes in deliberation.'
+            const msg = floorBlock ? 'The judge has given the floor to the ' + roleLabel(c.floor, c.case_type) + ' - wait your turn.'
+                : me.role === 'juror' ? 'Jurors listen during the trial. Your turn comes in deliberation.'
                 : me.role === 'spectator' ? 'You are in the gallery. The case creator can assign you a role in the People tab.' : '';
             if (msg) h += '<div class="hint" style="text-align:center;margin:10px 0">' + msg + '</div>';
         }
         if (c.phase === 'closed') h += '<div class="empty">This case is closed.</div>';
+    }
+
+    if (S.tab === 'chat') {
+        h += '<div class="hint" style="margin:2px 0 8px">Table talk for everyone in the case - the formal record stays in Court. Spectators can read but not post.</div>';
+        const chatPosts = d.posts.filter(p => p.kind === 'chat');
+        h += '<div class="transcript">';
+        chatPosts.forEach(p => { h += postHtml(p, me.name, false, c.case_type); });
+        if (!chatPosts.length) h += '<div class="empty">No chat yet.</div>';
+        h += '</div>';
+        const canChat = !floorBlock && me.role !== 'spectator' && c.phase !== 'closed' && !(me.role === 'juror' && (c.phase === 'deliberation' || c.phase === 'verdict'));
+        if (canChat) {
+            h += '<div class="saybox"><textarea id="chatInput" rows="2" placeholder="Chat with the courtroom..."></textarea>' +
+                (S.pendingImgFor === 'chat' && S.pendingImg ? '<img class="imgprev" src="' + S.pendingImg + '">' : '') +
+                '<div class="sayrow"><button class="btn small ghost" onclick="attachImg(\'chat\')">Photo</button><button class="btn small gold" onclick="doSay(\'chat\')">Say it</button></div></div>';
+        }
     }
 
     if (S.tab === 'people') {
@@ -565,7 +655,7 @@ function viewCase() {
         ROLE_ORDER.forEach(roleKey => {
             const inRole = d.members.filter(m => m.role === roleKey);
             if (!inRole.length) return;
-            h += '<div class="card"><div class="adminlabel">' + ROLES[roleKey].label + (inRole.length > 1 ? 's' : '') + '</div>' +
+            h += '<div class="card"><div class="adminlabel">' + roleLabel(roleKey, c.case_type) + (inRole.length > 1 ? 's' : '') + '</div>' +
                 '<div class="hint" style="margin-bottom:8px">' + ROLES[roleKey].desc + '</div>';
             inRole.forEach(m => {
                 const open = S.openMember === m.member_id;
@@ -573,11 +663,11 @@ function viewCase() {
                     (m.avatar ? '<img class="avatar" src="' + esc(m.avatar) + '">' : '<div class="avatar-ph">' + esc(m.name.charAt(0).toUpperCase()) + '</div>') +
                     '<div class="lbname">' + esc(m.name) + (m.is_me ? '<span class="you">you</span>' : '') +
                     (m.about ? '<div class="hint" style="font-weight:400;margin-top:2px">' + esc(m.about) + '</div>' : '') + '</div>' +
-                    '<span class="rolechip">' + ROLES[m.role].label + '</span>' +
+                    '<span class="rolechip">' + roleLabel(m.role, c.case_type) + '</span>' +
                     (c.is_creator ? '<span class="editcaret">' + (open ? '&#9650;' : '&#9660;') + '</span>' : '') + '</div>';
                 if (c.is_creator && open) {
                     h += '<div class="memberedit"><select onchange="doAssign(\'' + m.member_id + '\',this.value)">';
-                    ROLE_ORDER.forEach(r => { h += '<option value="' + r + '"' + (r === m.role ? ' selected' : '') + '>' + ROLES[r].label + '</option>'; });
+                    ROLE_ORDER.forEach(r => { h += '<option value="' + r + '"' + (r === m.role ? ' selected' : '') + '>' + roleLabel(r, c.case_type) + '</option>'; });
                     h += '</select><div class="hint" style="margin:8px 0">Only one Judge and one Defendant per case - assigning a new one moves the old one to Spectator.</div>' +
                         '<textarea id="brief-' + m.member_id + '" data-brief="1" rows="2" placeholder="Notes for this role - only they will see them">' + esc(m.brief || '') + '</textarea>' +
                         '<div class="sayrow" style="margin-top:8px"><button class="btn small gold" onclick="doSetBrief(\'' + m.member_id + '\')">Save notes</button>';
@@ -592,6 +682,22 @@ function viewCase() {
             });
             h += '</div>';
         });
+        if (canRun) {
+            h += '<div class="card"><div class="adminlabel">Trial settings</div>' +
+                '<label class="hint"><input type="checkbox" id="autoOn"' + (c.auto_on ? ' checked' : '') + '> Auto-advance the trial on a timer</label>' +
+                '<div style="height:8px"></div>' +
+                '<div class="joinrow"><input id="autoMin" type="number" min="1" max="10080" placeholder="Minutes per phase" value="' + (c.auto_minutes || '') + '">' +
+                '<button class="btn gold small joinbtn" onclick="doSetAuto()">Save</button></div>' +
+                '<div class="hint" style="margin-top:6px">Moves openings, testimony and closings forward on the clock. Deliberation and the verdict always wait for the jury or judge.</div>' +
+                (c.auto_on ? '<div class="hint" style="margin-top:6px">On: every ' + c.auto_minutes + ' min.</div>' : '') +
+                '</div>';
+            if (c.verdict || c.phase === 'verdict' || c.phase === 'closed') {
+                h += '<div class="card"><div class="adminlabel">Recorded outcome</div>' +
+                    '<input id="outcomeInput" placeholder="e.g. pays $200 play money, stays 5 feet away" value="' + esc(c.outcome || '') + '">' +
+                    '<div style="height:10px"></div>' +
+                    '<button class="btn small gold" onclick="act(\'set_outcome\',{outcome:document.getElementById(\'outcomeInput\').value})">Save outcome</button></div>';
+            }
+        }
         if (c.is_creator) {
             h += '<div class="card dangerzone"><div class="adminlabel">Case controls</div>' +
                 (S.confirm === 'delete'
@@ -606,7 +712,7 @@ function viewCase() {
     }
 
     if (S.tab === 'role') {
-        h += '<div class="card"><div class="adminlabel">Your role</div><div class="etitle">' + esc((ROLES[me.role] || {}).label || me.role) + '</div>' +
+        h += '<div class="card"><div class="adminlabel">Your role</div><div class="etitle">' + esc(roleLabel(me.role, c.case_type)) + '</div>' +
             '<div class="bodytext" style="margin-top:6px">' + esc((ROLES[me.role] || {}).desc || '') + '</div></div>';
         if (me.brief) h += '<div class="card brief"><div class="adminlabel">Notes for your role (from ' + esc(c.creator_name) + ')</div><div class="bodytext">' + esc(me.brief) + '</div></div>';
         h += '<div class="card"><div class="adminlabel">Your private notes</div>' +
@@ -623,20 +729,20 @@ function viewCase() {
         if (d.juror_count > 0 && (canJury || c.is_creator)) {
             h += '<div class="card"><div class="adminlabel">Votes (' + juryVotes.length + ' of ' + d.juror_count + ')</div>';
             if (juryVotes.length) juryVotes.forEach(j => {
-                h += '<div class="lbrow"><div class="lbname">' + esc(j.name) + '</div><div class="' + (j.vote === 'guilty' ? 'voteg' : 'voteng') + '">' + (j.vote === 'guilty' ? 'Guilty' : 'Not guilty') + '</div></div>';
+                h += '<div class="lbrow"><div class="lbname">' + esc(j.name) + '</div><div class="' + (j.vote === 'guilty' ? 'voteg' : 'voteng') + '">' + voteWord(j.vote, c.case_type) + '</div></div>';
             });
             else h += '<div class="hint">No votes yet.</div>';
             h += '</div>';
         }
         if (canJury && c.phase === 'deliberation' && !c.verdict) {
             h += '<div class="card"><div class="adminlabel">Your vote</div>' +
-                (me.my_vote ? '<div class="hint" style="margin-bottom:8px">You voted ' + (me.my_vote === 'guilty' ? 'Guilty' : 'Not guilty') + ' - you can change it until every juror has voted.</div>' : '') +
-                '<div class="yn"><button class="btn yes" onclick="act(\'vote\',{vote:\'guilty\'})">Guilty</button>' +
-                '<button class="btn no" onclick="act(\'vote\',{vote:\'not_guilty\'})">Not guilty</button></div></div>';
+                (me.my_vote ? '<div class="hint" style="margin-bottom:8px">You voted ' + voteWord(me.my_vote, c.case_type) + ' - you can change it until every juror has voted.</div>' : '') +
+                '<div class="yn"><button class="btn yes" onclick="act(\'vote\',{vote:\'guilty\'})">' + voteWord('guilty', c.case_type) + '</button>' +
+                '<button class="btn no" onclick="act(\'vote\',{vote:\'not_guilty\'})">' + voteWord('not_guilty', c.case_type) + '</button></div></div>';
         }
         const juryPosts = d.posts.filter(p => p.kind === 'jury');
         h += '<div class="transcript">';
-        juryPosts.forEach(p => { h += postHtml(p, me.name, false); });
+        juryPosts.forEach(p => { h += postHtml(p, me.name, false, c.case_type); });
         if (!juryPosts.length) h += '<div class="empty">Nothing said in the jury room yet.</div>';
         h += '</div>';
         if (canJury && c.phase === 'deliberation') {
