@@ -634,10 +634,12 @@ function viewCase() {
         h += '<select class="phaseselect" onchange="if(this.value)act(\'set_phase\',{phase:this.value})"><option value="">Move to...</option>';
         PHASES.filter(p => p !== c.phase).forEach(p => { h += '<option value="' + p + '">' + PHASE_LABEL[p] + '</option>'; });
         h += '</select>';
-        h += '<select class="phaseselect" onchange="act(\'set_floor\',{floor:this.value})" style="margin-left:6px">' +
-            '<option value="">Floor: open</option>' +
-            ['prosecutor', 'defense', 'defendant', 'witness'].map(r2 => '<option value="' + r2 + '"' + (c.floor === r2 ? ' selected' : '') + '>Floor: ' + roleLabel(r2, c.case_type) + ' only</option>').join('') +
-            '</select>';
+        if (c.auto_floor === false) {
+            h += '<select class="phaseselect" onchange="act(\'set_floor\',{floor:this.value})" style="margin-left:6px">' +
+                '<option value="">Floor: open</option>' +
+                ['prosecutor', 'defense', 'defendant', 'witness'].map(r2 => '<option value="' + r2 + '"' + (c.floor === r2 ? ' selected' : '') + '>Floor: ' + roleLabel(r2, c.case_type) + ' only</option>').join('') +
+                '</select>';
+        }
     }
     h += '</div>';
     h += '<div class="hint" style="margin:-2px 0 8px">' + esc(PHASE_EXPLAIN[c.phase] || '') + '</div>';
@@ -755,7 +757,7 @@ function viewCase() {
     if (S.tab === 'settings' && c.is_creator) {
         h += '<div class="card"><div class="adminlabel">Speaking</div>' +
             '<label class="hint"><input type="checkbox" id="autoSpeak"' + (c.auto_floor !== false ? ' checked' : '') + ' onchange="act(\'set_speaking\',{auto:this.checked})"> Automatic speaking turns (on by default)</label>' +
-            '<div class="hint" style="margin-top:6px">The app passes the floor between the two sides as they speak during opening statements and closing arguments. Objections and the judge are never blocked. Turn this off to run the floor by hand with the Floor menu above.</div></div>';
+            '<div class="hint" style="margin-top:6px">The app passes the floor between the two sides as they speak during opening statements and closing arguments. Objections and the judge are never blocked. While this is on, nobody can pick who speaks by hand - turn it off and the Floor menu appears above.</div></div>';
         {
             const sched = c.phase_sched || {};
             const SCHED_PHASES = [['openings', 'Opening statements'], ['testimony', 'Testimony'], ['closings', 'Closing arguments'], ['deliberation', 'Jury deliberation']];
