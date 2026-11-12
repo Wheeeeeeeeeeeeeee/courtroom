@@ -203,10 +203,10 @@ function snapshotFields() {
     document.querySelectorAll('[data-brief]').forEach(el => {
         snap[el.id] = { v: el.value, f: document.activeElement === el, s: el.selectionStart, e: el.selectionEnd };
     });
-    document.querySelectorAll('[id^="schMin-"], [id^="schHr-"], [id^="schDay-"], [id^="schStart-"], #outcomeInput').forEach(el => {
+    document.querySelectorAll('#outcomeInput').forEach(el => {
         snap[el.id] = { v: el.value, f: document.activeElement === el, s: el.selectionStart, e: el.selectionEnd };
     });
-    ['autoOn', 'autoSpeak'].forEach(id => {
+    ['autoSpeak'].forEach(id => {
         const el = document.getElementById(id);
         if (el) snap[id] = { c: el.checked };
     });
@@ -227,7 +227,7 @@ function render(force) {
     if (!force && S.screen === 'case' && S.tab === 'settings' && S.settingsShown) return;
     if (S.tab === 'settings') {
         const a = document.activeElement;
-        if (!force && a && a.id && /^(schMin-|schHr-|schDay-|schStart-|outcomeInput)/.test(a.id)) return;
+        if (!force && a && a.id && /^(outcomeInput)/.test(a.id)) return;
     }
     const snap = snapshotFields();
     const root = document.getElementById('root');
@@ -449,7 +449,7 @@ function viewHome() {
         '<div class="hint" style="line-height:1.8">' +
         '1. Create a case or join one with a code. 2. The case creator assigns roles in the People tab. 3. The judge moves the trial through the phases with "Move to...":<br>' +
         '<b>Lobby</b> - setup and roles. <b>Opening statements</b> - each side lays out its case. <b>Testimony</b> - witnesses speak, attorneys object. <b>Closing arguments</b> - final words to the jury. <b>Deliberation</b> - jurors talk privately in the jury room and vote; the verdict lands the moment every juror has voted (no jury: the judge decides). <b>Verdict</b> - the result is announced and the judge can record the outcome, like a play-money award or a stay-away rule. <b>Closed</b> - over and kept as a record.<br>' +
-        'Tips: Court is the formal transcript; Chat is table talk; the judge can give the floor to one side at a time; Photo attaches an image; Trial settings can give each phase its own timer or start date, even a day-long jury deliberation; your Profile holds your avatar, friends and trial record.' +
+        'Tips: Court is the formal transcript; Chat is table talk; the judge can give the floor to one side at a time; Photo attaches an image; the judge or case creator moves the trial through its phases; your Profile holds your avatar, friends and trial record.' +
         '</div></div>';
     if (S.cases.length) {
         h += '<div class="adminlabel" style="margin-top:18px">Your cases</div>';
@@ -562,29 +562,6 @@ async function doSetBrief(memberId) {
     await act('set_brief', { member: memberId, brief: briefEl ? briefEl.value : '' });
 }
 function toggleMember(id) { S.openMember = S.openMember === id ? null : id; render(); }
-function schedLocalInput(iso) {
-    if (!iso) return '';
-    const d = new Date(iso);
-    const p = x => String(x).padStart(2, '0');
-    return d.getFullYear() + '-' + p(d.getMonth() + 1) + '-' + p(d.getDate()) + 'T' + p(d.getHours()) + ':' + p(d.getMinutes());
-}
-async function doSetSchedule() {
-    const on = document.getElementById('autoOn').checked;
-    const phases = {};
-    ['openings', 'testimony', 'closings', 'deliberation'].forEach(p => {
-        const mins = parseInt(document.getElementById('schMin-' + p).value, 10) || 0;
-        const hrs = parseInt(document.getElementById('schHr-' + p).value, 10) || 0;
-        const days = parseInt(document.getElementById('schDay-' + p).value, 10) || 0;
-        const total = mins + hrs * 60 + days * 1440;
-        const start = document.getElementById('schStart-' + p).value;
-        const ent = {};
-        if (total > 0) { ent.value = String(total); ent.unit = 'minutes'; }
-        if (start) { try { ent.start = new Date(start).toISOString(); } catch (e) {} }
-        if (ent.value || ent.start) phases[p] = ent;
-    });
-    await act('set_schedule', { on, phases });
-}
-
 function doConfirm(key) {
     S.confirm = key;
     render();
@@ -760,7 +737,7 @@ function viewCase() {
             h += '</div>';
         });
         if (c.is_creator) {
-            h += '<div class="hint">Trial schedule, speaking, outcome and case controls now live in the Settings tab.</div>';
+            h += '<div class="hint">Speaking, outcome and case controls live in the Settings tab.</div>';
         } else {
             h += '<div class="card">' +
                 (S.confirm === 'leave'
@@ -773,51 +750,19 @@ function viewCase() {
         h += '<div class="card"><div class="adminlabel">Speaking</div>' +
             '<label class="hint"><input type="checkbox" id="autoSpeak"' + (c.auto_floor !== false ? ' checked' : '') + ' onchange="act(\'set_speaking\',{auto:this.checked})"> Automatic speaking turns (on by default)</label>' +
             '<div class="hint" style="margin-top:6px">The app passes the floor between the two sides as they speak during opening statements and closing arguments. Objections and the judge are never blocked. While this is on, nobody can pick who speaks by hand - turn it off and the Floor menu appears above.</div></div>';
-        {
-            const sched = c.phase_sched || {};
-            const SCHED_PHASES = [['openings', 'Opening statements'], ['testimony', 'Testimony'], ['closings', 'Closing arguments'], ['deliberation', 'Jury deliberation']];
-            h += '<div class="card"><div class="adminlabel">Trial schedule</div>' +
-                '<label class="hint"><input type="checkbox" id="autoOn"' + (c.auto_on ? ' checked' : '') + '> Run the trial on this schedule</label>' +
-                '<div style="height:8px"></div>';
-            SCHED_PHASES.forEach(sp => {
-                const ent = sched[sp[0]] || {};
-                const em = ent.minutes || 0;
-                const ed = Math.floor(em / 1440), eh = Math.floor((em % 1440) / 60), ei = em % 60;
-                h += '<div class="hint" style="margin-top:6px">' + sp[1] + '</div>' +
-                    '<div class="joinrow">' +
-                    '<input id="schMin-' + sp[0] + '" type="number" min="0" max="43200" placeholder="Minutes" value="' + (ei || '') + '">' +
-                    '<input id="schHr-' + sp[0] + '" type="number" min="0" max="720" placeholder="Hours" value="' + (eh || '') + '">' +
-                    '<input id="schDay-' + sp[0] + '" type="number" min="0" max="30" placeholder="Days" value="' + (ed || '') + '"></div>' +
-                    '<div class="joinrow" style="margin-top:4px"><input id="schStart-' + sp[0] + '" type="datetime-local" value="' + schedLocalInput(ent.start_at) + '" style="flex:1"></div>';
-            });
-            h += '<div class="joinrow" style="margin-top:8px"><button class="btn gold small joinbtn" onclick="doSetSchedule()">Save schedule</button></div>' +
-                '<div class="hint" style="margin-top:6px">For any phase set minutes, hours and days (they add together), a start date and time (your local time), or both - leave a phase blank and the judge moves it by hand. Jury deliberation can last days. The verdict is never forced: jurors vote or the judge decides, and the case never closes on its own.</div>';
-            if (c.auto_on) {
-                const bits = [];
-                SCHED_PHASES.forEach(sp => {
-                    const ent = sched[sp[0]] || {};
-                    const parts = [];
-                    if (ent.minutes) parts.push(ent.minutes >= 1440 && ent.minutes % 1440 === 0 ? (ent.minutes / 1440) + ' day' + (ent.minutes > 1440 ? 's' : '') : ent.minutes >= 60 && ent.minutes % 60 === 0 ? (ent.minutes / 60) + ' hr' : ent.minutes + ' min');
-                    if (ent.start_at) parts.push('starts ' + new Date(ent.start_at).toLocaleString());
-                    if (parts.length) bits.push(sp[1] + ': ' + parts.join(', '));
-                });
-                h += '<div class="hint" style="margin-top:6px">On: ' + (bits.length ? bits.join(' - ') : 'no phase timers set yet') + '.</div>';
-            }
-            h += '</div>';
-            if (c.verdict || c.phase === 'verdict' || c.phase === 'closed') {
+                    if (c.verdict || c.phase === 'verdict' || c.phase === 'closed') {
                 h += '<div class="card"><div class="adminlabel">Recorded outcome</div>' +
                     '<input id="outcomeInput" placeholder="e.g. pays $200 play money, stays 5 feet away" value="' + esc(c.outcome || '') + '">' +
                     '<div style="height:10px"></div>' +
                     '<button class="btn small gold" onclick="act(\'set_outcome\',{outcome:document.getElementById(\'outcomeInput\').value})">Save outcome</button></div>';
             }
-        }
         if (c.is_creator) {
             h += '<div class="card dangerzone"><div class="adminlabel">Case controls</div>' +
                 (S.confirm === 'delete'
                     ? '<button class="btn small red" onclick="act(\'delete_case\',{}).then(function(r){if(r.ok)exitCase()})">Tap again to delete this case</button>'
                     : '<button class="btn small ghost" onclick="doConfirm(\'delete\')">Delete this case</button>') + '</div>';
         }
-        h += '<div class="hint" style="text-align:center;margin-top:10px;opacity:.6">Build 12:30 AM update 3</div>';
+        h += '<div class="hint" style="text-align:center;margin-top:10px;opacity:.6">Build 12:31 AM update 4</div>';
     }
     if (S.tab === 'role') {
         h += '<div class="card"><div class="adminlabel">Your role</div><div class="etitle">' + esc(roleLabel(me.role, c.case_type)) + '</div>' +
