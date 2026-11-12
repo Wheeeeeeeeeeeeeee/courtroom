@@ -1,0 +1,568 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<title>Courtroom</title>
+<style>
+html, body, #root { margin: 0; min-height: 100%; }
+body { background: #14100c; color: #f0e8da; font-family: -apple-system, BlinkMacSystemFont, "SF Pro Text", "Segoe UI", Roboto, Helvetica, Arial, sans-serif; }
+* { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+.wrap { max-width: 560px; margin: 0 auto; padding: 0 14px 90px; }
+.topline { display: flex; align-items: center; gap: 10px; padding: 12px 0; position: sticky; top: 0; background: rgba(20,16,12,.94); backdrop-filter: blur(10px); z-index: 10; }
+.logo { font-weight: 800; font-size: 18px; letter-spacing: -0.3px; color: #d4a94e; }
+.biglogo { font-family: Georgia, 'Times New Roman', serif; font-weight: 700; font-size: 34px; letter-spacing: 0.5px; color: #d4a94e; }
+.brand { text-align: center; margin-top: 48px; }
+.brand-icon { font-size: 46px; color: #d4a94e; }
+.brand p { color: #a89880; font-size: 14px; margin-top: 8px; line-height: 1.5; }
+.spacer { flex: 1; }
+.case-title { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; color: #f0e8da; font-family: Georgia, serif; }
+.card { background: #211a13; border: 1px solid #3a2f22; border-radius: 16px; padding: 16px; margin-top: 12px; }
+.etitle { font-size: 16px; font-weight: 700; letter-spacing: -0.2px; line-height: 1.3; }
+.bodytext { font-size: 14.5px; line-height: 1.55; color: #e6dccb; white-space: pre-wrap; word-break: break-word; }
+.meta { margin-top: 8px; display: flex; flex-wrap: wrap; gap: 6px; }
+.casecard { cursor: pointer; }
+.casecard:active { background: #2a2118; }
+.hint { color: #a89880; font-size: 12.5px; margin-top: 8px; line-height: 1.45; }
+.err { color: #ff9d8f; font-size: 13.5px; margin-top: 10px; font-weight: 600; }
+.card.err { border-color: #5c2a20; }
+input, select, textarea { width: 100%; border: 1px solid #3a2f22; border-radius: 12px; padding: 12px 14px; font-size: 16px; background: #17120d; color: #f0e8da; outline: none; font-family: inherit; }
+input:focus, select:focus, textarea:focus { border-color: #d4a94e; }
+textarea { resize: vertical; }
+.btn { display: block; width: 100%; border: none; border-radius: 12px; padding: 14px 0; font-size: 16px; font-weight: 800; cursor: pointer; letter-spacing: 0.2px; font-family: inherit; }
+.btn.small { padding: 9px 12px; font-size: 13.5px; font-weight: 700; width: auto; }
+.btn.gold { background: #d4a94e; color: #1c1508; }
+.btn.red { background: #8c2f22; color: #fff; }
+.btn.ghost { background: transparent; border: 1px solid #3a2f22; color: #d4c9b4; font-weight: 600; }
+.btn.yes { background: #2e7d46; color: #fff; }
+.btn.no { background: #b3402e; color: #fff; }
+.btn:disabled { opacity: 0.6; }
+.yn { display: flex; gap: 10px; margin-top: 10px; }
+.yn .btn { flex: 1; width: auto; }
+.joinrow { display: flex; gap: 10px; }
+.joinbtn { width: 90px; flex: 0 0 auto; }
+.authtab { display: flex; gap: 8px; margin: 26px 0 14px; }
+.authtab .tab { flex: 1; text-align: center; padding: 11px 0; }
+.tabs { display: flex; gap: 8px; overflow-x: auto; padding: 10px 0 2px; scrollbar-width: none; }
+.tabs::-webkit-scrollbar { display: none; }
+.tab { flex: 0 0 auto; border: 1px solid #3a2f22; background: #211a13; color: #a89880; border-radius: 999px; padding: 8px 16px; font-size: 14px; font-weight: 600; cursor: pointer; }
+.tab.active { background: #d4a94e; color: #1c1508; border-color: #d4a94e; }
+.chip { background: #211a13; border: 1px solid #3a2f22; border-radius: 999px; padding: 6px 12px; font-size: 13px; font-weight: 700; white-space: nowrap; color: #e6dccb; font-family: inherit; cursor: default; }
+.codechip { color: #d4a94e; cursor: pointer; }
+.iconbtn { background: #211a13; border: 1px solid #3a2f22; border-radius: 999px; width: 34px; height: 34px; font-size: 15px; line-height: 1; cursor: pointer; color: #e6dccb; }
+.phaserow { display: flex; align-items: center; gap: 10px; margin-top: 4px; }
+.phasechip { background: #2c2315; border: 1px solid #4a3a1e; color: #d4a94e; border-radius: 999px; padding: 5px 12px; font-size: 12.5px; font-weight: 700; }
+.phasechip.big { font-size: 13.5px; padding: 7px 14px; }
+.phaseselect { width: auto; padding: 7px 10px; font-size: 13px; border-radius: 999px; }
+.rolechip { background: #26202e; border: 1px solid #40354f; color: #b9a8e0; border-radius: 999px; padding: 4px 10px; font-size: 12px; font-weight: 700; }
+.rolechip.creator { background: #1c2a1e; border-color: #2e5236; color: #7fc78f; }
+.rolechip.verdictset { background: #2c2315; border-color: #4a3a1e; color: #d4a94e; }
+.adminlabel { font-size: 11px; text-transform: uppercase; letter-spacing: 0.8px; color: #a89880; font-weight: 700; margin-bottom: 8px; }
+.transcript { margin-top: 12px; display: flex; flex-direction: column; gap: 10px; }
+.post { border-radius: 14px; padding: 12px 14px; }
+.post.statement { background: #211a13; border: 1px solid #3a2f22; }
+.post.statement.mine { border-color: #6b5527; background: #26200f; }
+.post.system { background: transparent; text-align: center; color: #a89880; font-size: 13px; font-style: italic; padding: 4px 8px; }
+.post.objection { background: #2a1712; border: 1px solid #6b2f22; }
+.objection-text { font-weight: 800; color: #ff8f7d; font-size: 14.5px; }
+.post.ruling { background: #26200f; border: 1px solid #4a3a1e; color: #d4a94e; font-weight: 700; font-size: 14px; }
+.post-head { display: flex; align-items: baseline; gap: 8px; margin-bottom: 4px; }
+.post-name { font-weight: 800; font-size: 13.5px; }
+.post-role { color: #a89880; font-size: 11.5px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.5px; }
+.ruling-tag { display: inline-block; margin-top: 8px; border-radius: 999px; padding: 4px 12px; font-size: 12px; font-weight: 800; }
+.ruling-tag.sustained { background: #1c2a1e; color: #7fc78f; }
+.ruling-tag.overruled { background: #2a1712; color: #ff8f7d; }
+.saybox { margin-top: 12px; position: sticky; bottom: 10px; background: #1a140e; border: 1px solid #3a2f22; border-radius: 16px; padding: 10px; box-shadow: 0 -6px 18px rgba(0,0,0,.35); }
+.sayrow { display: flex; gap: 10px; margin-top: 8px; justify-content: flex-end; }
+.sayrow .btn { flex: 0 0 auto; }
+.notice { text-align: center; color: #d4c9b4; font-size: 14px; }
+.brief { border-color: #4a3a1e; }
+.verdict { margin-top: 12px; border-radius: 16px; padding: 22px 16px; text-align: center; border: 2px solid; }
+.verdict.guilty { border-color: #b3402e; background: #2a1712; }
+.verdict.not_guilty { border-color: #2e7d46; background: #16271b; }
+.verdict.hung { border-color: #d4a94e; background: #26200f; }
+.verdict-label { font-size: 11px; text-transform: uppercase; letter-spacing: 1.5px; color: #a89880; font-weight: 700; }
+.verdict-text { font-family: Georgia, serif; font-size: 34px; font-weight: 700; margin-top: 6px; }
+.verdict.guilty .verdict-text { color: #ff8f7d; }
+.verdict.not_guilty .verdict-text { color: #7fc78f; }
+.verdict.hung .verdict-text { color: #d4a94e; }
+.verdict-note { margin-top: 8px; color: #d4c9b4; font-size: 13.5px; }
+.memberrow { border-top: 1px solid #33291d; padding: 10px 0; }
+.memberrow:first-of-type { border-top: none; }
+.memberhead { display: flex; align-items: center; gap: 10px; cursor: pointer; }
+.lbname { flex: 1; font-weight: 600; font-size: 15px; }
+.you { color: #7fc78f; font-size: 12px; font-weight: 700; margin-left: 6px; }
+.editcaret { color: #a89880; font-size: 11px; }
+.memberedit { margin-top: 10px; background: #17120d; border: 1px solid #33291d; border-radius: 12px; padding: 12px; }
+.lbrow { display: flex; align-items: center; gap: 12px; padding: 8px 0; border-bottom: 1px solid #33291d; }
+.lbrow:last-child { border-bottom: none; }
+.voteg { color: #ff8f7d; font-weight: 700; font-size: 13.5px; }
+.voteng { color: #7fc78f; font-weight: 700; font-size: 13.5px; }
+.empty { text-align: center; color: #a89880; font-size: 14px; padding: 34px 0; }
+.dangerzone { border-color: #5c2a20; }
+.gavel { margin-right: 4px; }
+</style>
+</head>
+<body>
+<div id="root"></div>
+<script>
+const SB_URL = 'https://ztdeqnmcdfpjyghbdrxn.supabase.co';
+const SB_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Inp0ZGVxbm1jZGZwanlnaGJkcnhuIiwicm9sZSI6ImFub24iLCJpYXQiOjE3OTIyNDc2OTAsImV4cCI6MjEwNzgyMzY5MH0.l7wUkJC50wsmYQIkvtxJ7FWQhIr4RYez2nB7Pwi5kco';
+
+async function rpc(action, data, token) {
+    try {
+        const res = await fetch(SB_URL + '/rest/v1/rpc/court', {
+            method: 'POST',
+            headers: { apikey: SB_KEY, Authorization: 'Bearer ' + SB_KEY, 'Content-Type': 'application/json' },
+            body: JSON.stringify({ p_token: token || '', p_action: action, p_data: data || {} }),
+        });
+        return await res.json();
+    } catch (e) {
+        return { ok: false, error: 'No connection - check your internet and try again' };
+    }
+}
+
+const store = {
+    get() { try { return localStorage.getItem('court_token'); } catch (e) { return null; } },
+    set(t) { try { localStorage.setItem('court_token', t); } catch (e) {} },
+    clear() { try { localStorage.removeItem('court_token'); } catch (e) {} },
+};
+
+const ROLES = {
+    judge: { label: 'Judge', desc: 'Runs the trial. Moves the case through each phase, rules on objections as sustained or overruled, and keeps order in the court.' },
+    prosecutor: { label: 'Prosecutor', desc: 'Represents the state. Tries to prove the defendant is guilty with opening and closing statements, witness questioning and evidence.' },
+    defense: { label: 'Defense Attorney', desc: "Defends the accused. Pokes holes in the prosecution's case, questions witnesses and argues for a not guilty verdict." },
+    defendant: { label: 'Defendant', desc: 'The person on trial. Can testify and speak, but the verdict decides their fate.' },
+    witness: { label: 'Witness', desc: 'Testifies under oath during testimony. Answer questions from both sides and tell the court what you know.' },
+    juror: { label: 'Juror', desc: 'Listens to the whole trial in silence, then deliberates privately with the other jurors and votes guilty or not guilty.' },
+    spectator: { label: 'Spectator', desc: 'Watches the trial from the gallery. Cannot speak in court - waiting for a role.' },
+};
+const ROLE_ORDER = ['judge', 'prosecutor', 'defense', 'defendant', 'witness', 'juror', 'spectator'];
+const PHASES = ['lobby', 'openings', 'testimony', 'closings', 'deliberation', 'verdict', 'closed'];
+const PHASE_LABEL = {
+    lobby: 'Setup', openings: 'Opening statements', testimony: 'Testimony & evidence',
+    closings: 'Closing arguments', deliberation: 'Jury deliberation', verdict: 'Verdict', closed: 'Case closed',
+};
+
+function esc(s) {
+    return String(s == null ? '' : s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+}
+
+let S = {
+    token: store.get(),
+    name: '',
+    screen: 'home',
+    caseId: null,
+    d: null,
+    tab: 'court',
+    err: '',
+    confirm: null,
+    copied: false,
+    notesSaved: false,
+    openMember: null,
+    cases: [],
+    poll: null,
+    lastPosts: -1,
+    notesInit: false,
+};
+
+const FIELD_IDS = ['authName', 'authPin', 'caseTitle', 'caseDesc', 'joinCode', 'sayInput', 'juryInput', 'notesInput', 'verdictNote'];
+
+function snapshotFields() {
+    const snap = {};
+    FIELD_IDS.forEach(id => {
+        const el = document.getElementById(id);
+        if (el) snap[id] = { v: el.value, f: document.activeElement === el, s: el.selectionStart, e: el.selectionEnd };
+    });
+    document.querySelectorAll('[data-brief]').forEach(el => {
+        snap[el.id] = { v: el.value, f: document.activeElement === el, s: el.selectionStart, e: el.selectionEnd };
+    });
+    return snap;
+}
+function restoreFields(snap) {
+    Object.keys(snap).forEach(id => {
+        const el = document.getElementById(id);
+        if (el) {
+            el.value = snap[id].v;
+            if (snap[id].f) { el.focus(); try { el.setSelectionRange(snap[id].s, snap[id].e); } catch (e) {} }
+        }
+    });
+}
+
+function render() {
+    const snap = snapshotFields();
+    const root = document.getElementById('root');
+    if (!S.token) root.innerHTML = viewAuth();
+    else if (S.screen === 'case' && S.caseId) root.innerHTML = viewCase();
+    else root.innerHTML = viewHome();
+    restoreFields(snap);
+    if (S.d && S.d.posts.length > S.lastPosts) {
+        S.lastPosts = S.d.posts.length;
+        const end = document.getElementById('transcriptEnd');
+        if (end) end.scrollIntoView({ behavior: 'smooth' });
+    }
+}
+
+/* ---------------- auth ---------------- */
+
+function viewAuth() {
+    return '<div class="wrap">' +
+        '<div class="brand"><div class="brand-icon">&#9878;</div><div class="biglogo">Courtroom</div>' +
+        '<p>Set up a case, invite your friends, assign the judge, jury and everyone else, then run a real trial.</p></div>' +
+        '<div class="authtab">' +
+        '<div class="tab' + (S.authMode !== 'login' ? ' active' : '') + '" onclick="setAuthMode(\'signup\')">Sign up</div>' +
+        '<div class="tab' + (S.authMode === 'login' ? ' active' : '') + '" onclick="setAuthMode(\'login\')">Log in</div></div>' +
+        '<div class="card">' +
+        '<input id="authName" placeholder="Name" autocapitalize="off">' +
+        '<div style="height:10px"></div>' +
+        '<input id="authPin" placeholder="PIN (4+ characters)" type="password" onkeydown="if(event.key===\'Enter\')doAuth()">' +
+        '<div style="height:14px"></div>' +
+        '<button class="btn gold" onclick="doAuth()">' + (S.authMode === 'login' ? 'Log in' : 'Create account') + '</button>' +
+        (S.err ? '<div class="err">' + esc(S.err) + '</div>' : '') +
+        '</div>' +
+        '<div class="hint" style="text-align:center;margin-top:18px">One account works for every case you create or join.</div>' +
+        '</div>';
+}
+function setAuthMode(m) { S.authMode = m; S.err = ''; render(); }
+async function doAuth() {
+    const name = document.getElementById('authName').value.trim();
+    const pin = document.getElementById('authPin').value.trim();
+    if (!name || !pin) { S.err = 'Enter a name and a PIN'; render(); return; }
+    const r = await rpc(S.authMode === 'login' ? 'login' : 'signup', { name, pin });
+    if (!r.ok) { S.err = r.error; render(); return; }
+    store.set(r.token);
+    S.token = r.token; S.name = r.name; S.err = '';
+    loadCases();
+}
+
+/* ---------------- home ---------------- */
+
+function viewHome() {
+    let h = '<div class="wrap">' +
+        '<div class="topline"><div class="logo">&#9878; Courtroom</div><div class="spacer"></div>' +
+        '<div class="chip">' + esc(S.name || 'You') + '</div>' +
+        '<button class="iconbtn" title="Log out" onclick="doLogout()">&#8599;</button></div>' +
+        '<div class="card"><div class="adminlabel">Open a new case</div>' +
+        '<input id="caseTitle" placeholder="Case title - The People v. ...">' +
+        '<div style="height:10px"></div>' +
+        '<textarea id="caseDesc" rows="3" placeholder="The charges: what happened, who is accused, and of what?"></textarea>' +
+        '<div style="height:14px"></div>' +
+        '<button class="btn gold" onclick="doCreateCase()">Create the case</button></div>' +
+        '<div class="card"><div class="adminlabel">Join a friend\'s case</div>' +
+        '<div class="joinrow"><input id="joinCode" placeholder="Case code" maxlength="8" autocapitalize="characters">' +
+        '<button class="btn gold small joinbtn" onclick="doJoinCase()">Join</button></div>' +
+        '<div class="hint">Ask whoever created the case for its 8-character code.</div></div>';
+    if (S.err) h += '<div class="err card">' + esc(S.err) + '</div>';
+    if (S.cases.length) {
+        h += '<div class="adminlabel" style="margin-top:18px">Your cases</div>';
+        S.cases.forEach(c => {
+            h += '<div class="card casecard" onclick="openCase(\'' + c.id + '\')">' +
+                '<div class="etitle">' + esc(c.title) + '</div><div class="meta">' +
+                '<span class="phasechip">' + esc(PHASE_LABEL[c.phase] || c.phase) + '</span>' +
+                '<span class="rolechip">' + esc((ROLES[c.role] || {}).label || c.role) + '</span>' +
+                (c.is_creator ? '<span class="rolechip creator">Creator</span>' : '') +
+                (c.verdict ? '<span class="rolechip verdictset">Verdict in</span>' : '') +
+                '</div></div>';
+        });
+    } else {
+        h += '<div class="empty">No cases yet. Create one, or join a friend\'s with their code.</div>';
+    }
+    return h + '</div>';
+}
+
+async function loadCases() {
+    const r = await rpc('my_cases', {}, S.token);
+    if (r.ok) { S.cases = r.cases; S.screen = 'home'; render(); }
+    else if (r.error === 'Please log in again') { store.clear(); S.token = null; render(); }
+}
+async function doCreateCase() {
+    const title = document.getElementById('caseTitle').value.trim();
+    const desc = document.getElementById('caseDesc').value.trim();
+    if (!title) { S.err = 'Give the case a title'; render(); return; }
+    const r = await rpc('create_case', { title, description: desc }, S.token);
+    if (!r.ok) { S.err = r.error; render(); return; }
+    S.err = '';
+    openCase(r.case_id);
+}
+async function doJoinCase() {
+    const code = document.getElementById('joinCode').value.trim();
+    if (!code) { S.err = 'Enter a case code'; render(); return; }
+    const r = await rpc('join_case', { code }, S.token);
+    if (!r.ok) { S.err = r.error; render(); return; }
+    S.err = '';
+    openCase(r.case_id);
+}
+function openCase(id) {
+    S.caseId = id; S.screen = 'case'; S.d = null; S.tab = 'court'; S.err = '';
+    S.lastPosts = -1; S.notesInit = false; S.openMember = null;
+    loadCase();
+    if (S.poll) clearInterval(S.poll);
+    S.poll = setInterval(loadCase, 4000);
+    render();
+}
+function exitCase() {
+    if (S.poll) { clearInterval(S.poll); S.poll = null; }
+    S.caseId = null; S.d = null; S.screen = 'home';
+    loadCases();
+}
+function doLogout() {
+    if (S.poll) { clearInterval(S.poll); S.poll = null; }
+    store.clear(); S.token = null; S.d = null; S.caseId = null; S.screen = 'home';
+    render();
+}
+
+/* ---------------- case ---------------- */
+
+async function loadCase() {
+    if (!S.caseId) return;
+    const r = await rpc('get_case', { case: S.caseId }, S.token);
+    if (r.ok) {
+        S.d = r; S.err = '';
+        if (!S.notesInit) { S.notesInit = true; setTimeout(() => { const el = document.getElementById('notesInput'); if (el) el.value = r.me.notes || ''; }, 0); }
+        render();
+    } else {
+        S.err = r.error || 'Could not load the case';
+        render();
+    }
+}
+
+async function act(action, data) {
+    const r = await rpc(action, Object.assign({ case: S.caseId }, data || {}), S.token);
+    if (!r.ok) { S.err = r.error; render(); return r; }
+    S.err = '';
+    await loadCase();
+    return r;
+}
+
+function setTab(t) { S.tab = t; render(); }
+
+async function doSay(kind) {
+    const el = document.getElementById(kind === 'jury' ? 'juryInput' : 'sayInput');
+    const text = el.value.trim();
+    if (!text) return;
+    const r = await act('post', { kind, text });
+    if (r.ok) el.value = '';
+}
+async function doSaveNotes() {
+    const el = document.getElementById('notesInput');
+    const r = await act('set_notes', { notes: el.value });
+    if (r.ok) { S.notesSaved = true; render(); }
+}
+async function doAssign(memberId, role) {
+    const briefEl = document.getElementById('brief-' + memberId);
+    await act('assign_role', { member: memberId, role, brief: briefEl ? briefEl.value : undefined });
+}
+async function doSetBrief(memberId) {
+    const briefEl = document.getElementById('brief-' + memberId);
+    await act('set_brief', { member: memberId, brief: briefEl ? briefEl.value : '' });
+}
+function toggleMember(id) { S.openMember = S.openMember === id ? null : id; render(); }
+
+function doConfirm(key) {
+    S.confirm = key;
+    render();
+    setTimeout(() => { if (S.confirm === key) { S.confirm = null; render(); } }, 3000);
+}
+
+function copyCode() {
+    const code = S.d.case.code;
+    if (navigator.clipboard && navigator.clipboard.writeText) navigator.clipboard.writeText(code);
+    S.copied = true; render();
+    setTimeout(() => { S.copied = false; render(); }, 2000);
+}
+
+function verdictBanner(verdict, note) {
+    const label = verdict === 'guilty' ? 'GUILTY' : verdict === 'not_guilty' ? 'NOT GUILTY' : 'HUNG JURY';
+    return '<div class="verdict ' + esc(verdict) + '"><div class="verdict-label">The verdict</div>' +
+        '<div class="verdict-text">' + label + '</div>' +
+        (note ? '<div class="verdict-note">' + esc(note) + '</div>' : '') + '</div>';
+}
+
+function postHtml(p, meName, canRun) {
+    if (p.kind === 'system') return '<div class="post system">' + esc(p.text) + '</div>';
+    if (p.kind === 'objection') {
+        let h = '<div class="post objection"><div class="post-head"><span class="post-name">' + esc(p.name) + '</span>' +
+            '<span class="post-role">' + esc((ROLES[p.role] || {}).label || '') + '</span></div>' +
+            '<div class="objection-text">Objection! ' + esc(p.text) + '</div>';
+        if (p.ruling) h += '<div class="ruling-tag ' + p.ruling + '">' + (p.ruling === 'sustained' ? 'Sustained' : 'Overruled') + '</div>';
+        else if (canRun) h += '<div class="yn"><button class="btn small yes" onclick="act(\'rule\',{post:\'' + p.id + '\',ruling:\'sustained\'})">Sustain</button>' +
+            '<button class="btn small no" onclick="act(\'rule\',{post:\'' + p.id + '\',ruling:\'overruled\'})">Overrule</button></div>';
+        return h + '</div>';
+    }
+    if (p.kind === 'ruling') return '<div class="post ruling"><span class="gavel">&#9878;</span> ' + esc(p.name) + ': ' + esc(p.text) + '</div>';
+    return '<div class="post statement' + (p.name === meName ? ' mine' : '') + '">' +
+        '<div class="post-head"><span class="post-name">' + esc(p.name) + '</span>' +
+        '<span class="post-role">' + esc((ROLES[p.role] || {}).label || '') + '</span></div>' +
+        '<div class="bodytext">' + esc(p.text) + '</div></div>';
+}
+
+function viewCase() {
+    const d = S.d;
+    if (!d) return '<div class="wrap"><div class="empty">' + esc(S.err || 'Entering the courtroom...') + '</div></div>';
+    const c = d.case, me = d.me;
+    const isJudge = me.role === 'judge';
+    const canRun = c.is_creator || isJudge;
+    const canSpeak = me.role !== 'spectator' && me.role !== 'juror' && ['deliberation', 'verdict', 'closed'].indexOf(c.phase) < 0;
+    const canObject = ['prosecutor', 'defense'].indexOf(me.role) >= 0 && c.phase === 'testimony';
+    const canJury = me.role === 'juror';
+    const juryVotes = d.jury || [];
+
+    let h = '<div class="wrap">';
+    h += '<div class="topline"><button class="iconbtn" onclick="exitCase()">&#8592;</button>' +
+        '<div class="logo case-title">' + esc(c.title) + '</div><div class="spacer"></div>' +
+        '<button class="chip codechip" onclick="copyCode()">' + (S.copied ? 'Copied!' : 'Code: ' + esc(c.code)) + '</button></div>';
+
+    h += '<div class="phaserow"><span class="phasechip big">' + esc(PHASE_LABEL[c.phase] || c.phase) + '</span>';
+    if (canRun && c.phase !== 'closed') {
+        h += '<select class="phaseselect" onchange="if(this.value)act(\'set_phase\',{phase:this.value})"><option value="">Move to...</option>';
+        PHASES.filter(p => p !== c.phase).forEach(p => { h += '<option value="' + p + '">' + PHASE_LABEL[p] + '</option>'; });
+        h += '</select>';
+    }
+    h += '</div>';
+
+    if (c.verdict) h += verdictBanner(c.verdict, c.verdict_note);
+
+    h += '<div class="tabs">' +
+        '<div class="tab' + (S.tab === 'court' ? ' active' : '') + '" onclick="setTab(\'court\')">Court</div>' +
+        '<div class="tab' + (S.tab === 'people' ? ' active' : '') + '" onclick="setTab(\'people\')">People (' + d.members.length + ')</div>' +
+        '<div class="tab' + (S.tab === 'role' ? ' active' : '') + '" onclick="setTab(\'role\')">My role</div>';
+    if (canJury || c.is_creator) h += '<div class="tab' + (S.tab === 'jury' ? ' active' : '') + '" onclick="setTab(\'jury\')">Jury room' + (d.juror_count > 0 ? ' ' + juryVotes.length + '/' + d.juror_count : '') + '</div>';
+    h += '</div>';
+
+    if (S.err) h += '<div class="err card">' + esc(S.err) + '</div>';
+
+    if (S.tab === 'court') {
+        if (c.description) h += '<div class="card"><div class="adminlabel">The charges</div><div class="bodytext">' + esc(c.description) + '</div></div>';
+        h += '<div class="transcript">';
+        d.posts.filter(p => p.kind !== 'jury').forEach(p => { h += postHtml(p, me.name, canRun); });
+        h += '<div id="transcriptEnd"></div></div>';
+
+        if (c.phase === 'deliberation' && !c.verdict) {
+            h += '<div class="card notice">' + (d.juror_count > 0
+                ? 'The jury is deliberating' + (c.is_creator || canJury ? ': ' + juryVotes.length + ' of ' + d.juror_count + ' voted' : '') + '. The courtroom waits.'
+                : 'No jurors assigned. ' + (canRun ? 'Decide the verdict below.' : 'The judge will decide the verdict.')) + '</div>';
+            if (d.juror_count === 0 && canRun) {
+                h += '<div class="card"><div class="adminlabel">Decide the verdict</div>' +
+                    '<input id="verdictNote" placeholder="A note on the decision (optional)">' +
+                    '<div class="yn"><button class="btn small yes" onclick="act(\'decide_verdict\',{verdict:\'guilty\',note:document.getElementById(\'verdictNote\').value})">Guilty</button>' +
+                    '<button class="btn small no" onclick="act(\'decide_verdict\',{verdict:\'not_guilty\',note:document.getElementById(\'verdictNote\').value})">Not guilty</button>' +
+                    '<button class="btn small ghost" onclick="act(\'decide_verdict\',{verdict:\'hung\',note:document.getElementById(\'verdictNote\').value})">Hung</button></div></div>';
+            }
+        }
+
+        if (canSpeak || canObject) {
+            h += '<div class="saybox"><textarea id="sayInput" rows="2" placeholder="' +
+                (c.phase === 'lobby' ? 'Talk before the trial starts...' : 'Address the court...') + '"></textarea><div class="sayrow">';
+            if (canObject) h += '<button class="btn small red" onclick="doSay(\'objection\')">Objection!</button>';
+            if (canSpeak) h += '<button class="btn small gold" onclick="doSay(\'statement\')">' +
+                (c.phase === 'openings' ? 'Opening statement' : c.phase === 'closings' ? 'Closing argument' : 'Say it') + '</button>';
+            h += '</div></div>';
+        } else if (!c.verdict && c.phase !== 'deliberation' && c.phase !== 'closed') {
+            const msg = me.role === 'juror' ? 'Jurors listen during the trial. Your turn comes in deliberation.'
+                : me.role === 'spectator' ? 'You are in the gallery. The case creator can assign you a role in the People tab.' : '';
+            if (msg) h += '<div class="hint" style="text-align:center;margin:10px 0">' + msg + '</div>';
+        }
+        if (c.phase === 'closed') h += '<div class="empty">This case is closed.</div>';
+    }
+
+    if (S.tab === 'people') {
+        h += '<div class="card"><div class="adminlabel">Invite friends</div><div class="bodytext">Send them the case code <b>' + esc(c.code) + '</b> and this site\'s link. They sign up, tap "Join a friend\'s case" and enter the code, then you assign their roles here.</div><div class="hint" style="margin-top:8px">Anyone with the code joins as a Spectator who can watch the case - you can remove anyone below. As the case creator you can see every role\'s notes and the jury room.</div></div>';
+        ROLE_ORDER.forEach(roleKey => {
+            const inRole = d.members.filter(m => m.role === roleKey);
+            if (!inRole.length) return;
+            h += '<div class="card"><div class="adminlabel">' + ROLES[roleKey].label + (inRole.length > 1 ? 's' : '') + '</div>' +
+                '<div class="hint" style="margin-bottom:8px">' + ROLES[roleKey].desc + '</div>';
+            inRole.forEach(m => {
+                const open = S.openMember === m.member_id;
+                h += '<div class="memberrow"><div class="memberhead" onclick="toggleMember(\'' + m.member_id + '\')">' +
+                    '<div class="lbname">' + esc(m.name) + (m.is_me ? '<span class="you">you</span>' : '') + '</div>' +
+                    '<span class="rolechip">' + ROLES[m.role].label + '</span>' +
+                    (c.is_creator ? '<span class="editcaret">' + (open ? '&#9650;' : '&#9660;') + '</span>' : '') + '</div>';
+                if (c.is_creator && open) {
+                    h += '<div class="memberedit"><select onchange="doAssign(\'' + m.member_id + '\',this.value)">';
+                    ROLE_ORDER.forEach(r => { h += '<option value="' + r + '"' + (r === m.role ? ' selected' : '') + '>' + ROLES[r].label + '</option>'; });
+                    h += '</select><div class="hint" style="margin:8px 0">Only one Judge and one Defendant per case - assigning a new one moves the old one to Spectator.</div>' +
+                        '<textarea id="brief-' + m.member_id + '" data-brief="1" rows="2" placeholder="Notes for this role - only they will see them">' + esc(m.brief || '') + '</textarea>' +
+                        '<div class="sayrow" style="margin-top:8px"><button class="btn small gold" onclick="doSetBrief(\'' + m.member_id + '\')">Save notes</button>';
+                    if (!m.is_me) {
+                        h += S.confirm === 'kick' + m.member_id
+                            ? '<button class="btn small red" onclick="act(\'remove_member\',{member:\'' + m.member_id + '\'})">Tap again to remove</button>'
+                            : '<button class="btn small ghost" onclick="doConfirm(\'kick' + m.member_id + '\')">Remove</button>';
+                    }
+                    h += '</div></div>';
+                }
+                h += '</div>';
+            });
+            h += '</div>';
+        });
+        if (c.is_creator) {
+            h += '<div class="card dangerzone"><div class="adminlabel">Case controls</div>' +
+                (S.confirm === 'delete'
+                    ? '<button class="btn small red" onclick="act(\'delete_case\',{}).then(function(r){if(r.ok)exitCase()})">Tap again to delete this case</button>'
+                    : '<button class="btn small ghost" onclick="doConfirm(\'delete\')">Delete this case</button>') + '</div>';
+        } else {
+            h += '<div class="card">' +
+                (S.confirm === 'leave'
+                    ? '<button class="btn small red" onclick="act(\'leave_case\',{}).then(function(r){if(r.ok)exitCase()})">Tap again to leave</button>'
+                    : '<button class="btn small ghost" onclick="doConfirm(\'leave\')">Leave this case</button>') + '</div>';
+        }
+    }
+
+    if (S.tab === 'role') {
+        h += '<div class="card"><div class="adminlabel">Your role</div><div class="etitle">' + esc((ROLES[me.role] || {}).label || me.role) + '</div>' +
+            '<div class="bodytext" style="margin-top:6px">' + esc((ROLES[me.role] || {}).desc || '') + '</div></div>';
+        if (me.brief) h += '<div class="card brief"><div class="adminlabel">Notes for your role (from ' + esc(c.creator_name) + ')</div><div class="bodytext">' + esc(me.brief) + '</div></div>';
+        h += '<div class="card"><div class="adminlabel">Your private notes</div>' +
+            '<div class="hint" style="margin-bottom:8px">Only you can see these - strategy, questions to ask, things to remember.</div>' +
+            '<textarea id="notesInput" rows="5" placeholder="Write your private notes here..."></textarea>' +
+            '<div style="height:12px"></div>' +
+            '<button class="btn small gold" onclick="doSaveNotes()">' + (S.notesSaved ? 'Saved' : 'Save notes') + '</button></div>';
+    }
+
+    if (S.tab === 'jury' && (canJury || c.is_creator)) {
+        h += '<div class="card notice">' + (c.phase === 'deliberation'
+            ? 'The jury room is private. Talk it over, then vote. The verdict is announced when every juror has voted.'
+            : c.verdict ? 'Deliberation is over - the verdict is in.' : 'The jury room opens when the trial moves to deliberation.') + '</div>';
+        if (d.juror_count > 0 && (canJury || c.is_creator)) {
+            h += '<div class="card"><div class="adminlabel">Votes (' + juryVotes.length + ' of ' + d.juror_count + ')</div>';
+            if (juryVotes.length) juryVotes.forEach(j => {
+                h += '<div class="lbrow"><div class="lbname">' + esc(j.name) + '</div><div class="' + (j.vote === 'guilty' ? 'voteg' : 'voteng') + '">' + (j.vote === 'guilty' ? 'Guilty' : 'Not guilty') + '</div></div>';
+            });
+            else h += '<div class="hint">No votes yet.</div>';
+            h += '</div>';
+        }
+        if (canJury && c.phase === 'deliberation' && !c.verdict) {
+            h += '<div class="card"><div class="adminlabel">Your vote</div>' +
+                (me.my_vote ? '<div class="hint" style="margin-bottom:8px">You voted ' + (me.my_vote === 'guilty' ? 'Guilty' : 'Not guilty') + ' - you can change it until every juror has voted.</div>' : '') +
+                '<div class="yn"><button class="btn yes" onclick="act(\'vote\',{vote:\'guilty\'})">Guilty</button>' +
+                '<button class="btn no" onclick="act(\'vote\',{vote:\'not_guilty\'})">Not guilty</button></div></div>';
+        }
+        const juryPosts = d.posts.filter(p => p.kind === 'jury');
+        h += '<div class="transcript">';
+        juryPosts.forEach(p => { h += postHtml(p, me.name, false); });
+        if (!juryPosts.length) h += '<div class="empty">Nothing said in the jury room yet.</div>';
+        h += '</div>';
+        if (canJury && c.phase === 'deliberation') {
+            h += '<div class="saybox"><textarea id="juryInput" rows="2" placeholder="Speak to your fellow jurors..."></textarea>' +
+                '<div class="sayrow"><button class="btn small gold" onclick="doSay(\'jury\')">Say it</button></div></div>';
+        }
+    }
+
+    return h + '</div>';
+}
+
+/* ---------------- boot ---------------- */
+
+if (S.token) {
+    rpc('my_cases', {}, S.token).then(r => {
+        if (!r.ok) { store.clear(); S.token = null; render(); return; }
+        S.cases = r.cases;
+        render();
+    });
+}
+render();
+</script>
+</body>
+</html>
