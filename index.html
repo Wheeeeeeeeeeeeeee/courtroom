@@ -434,7 +434,7 @@ function viewHome() {
             '<input id="newPin" type="password" inputmode="numeric" placeholder="New PIN (at least 4 characters)">' +
             '<div style="height:10px"></div>' +
             '<button class="btn gold" onclick="doChangePin()">' + (S.pinSaved ? 'PIN changed' : 'Change PIN') + '</button>' +
-            '<div class="hint" style="margin-top:8px">Use the same 6 numbers as your other sites. You will stay logged in.</div></div>';
+            '<div class="hint" style="margin-top:8px">Choose a new PIN. You will stay logged in.</div></div>';
         h += '<div class="card" style="margin-top:14px"><div class="adminlabel">Your trial record</div>';
         const rec = (S.cases || []).filter(x => x.verdict || x.phase === 'verdict' || x.phase === 'closed');
         if (!rec.length) h += '<div class="hint">No finished trials yet.</div>';
@@ -850,4 +850,3 @@ render();
 </script>
 </body>
 </html>
-
