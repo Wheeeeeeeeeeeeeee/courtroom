@@ -132,6 +132,19 @@ async function rpc(action, data, token) {
     }
 }
 
+async function rpcSetPin(newPin, token) {
+    try {
+        const res = await fetch(SB_URL + '/rest/v1/rpc/court_change_pin', {
+            method: 'POST',
+            headers: { apikey: SB_KEY, Authorization: 'Bearer ' + SB_KEY, 'Content-Type': 'application/json' },
+            body: JSON.stringify({ p_token: token || '', p_new_pin: newPin }),
+        });
+        return await res.json();
+    } catch (e) {
+        return { ok: false, error: 'No connection - check your internet and try again' };
+    }
+}
+
 const store = {
     get() { try { return localStorage.getItem('court_token'); } catch (e) { return null; } },
     set(t) { try { localStorage.setItem('court_token', t); } catch (e) {} },
@@ -297,6 +310,15 @@ async function doSaveProfile() {
     S.err = ''; S.profileSaved = true; render();
     setTimeout(() => { S.profileSaved = false; if (S.screen === 'home') render(); }, 2000);
 }
+async function doChangePin() {
+    const el = document.getElementById('newPin');
+    const pin = el ? el.value.trim() : '';
+    if (pin.length < 4) { S.err = 'PIN must be at least 4 characters'; render(); return; }
+    const r = await rpcSetPin(pin, S.token);
+    if (!r.ok) { S.err = r.error || 'Could not change PIN'; render(); return; }
+    S.err = ''; S.pinSaved = true; render();
+    setTimeout(() => { S.pinSaved = false; if (S.screen === 'home') render(); }, 2000);
+}
 
 async function loadFriends() { const r = await rpc('friends', {}, S.token); if (r.ok) S.friends = r; }
 async function loadUpdates() { const r = await rpc('get_updates', {}, S.token); if (r.ok) { S.updates = r.updates; S.admin = !!r.admin; if (S.screen === 'home') render(); } }
@@ -408,6 +430,11 @@ function viewHome() {
             (S.err ? '<div class="err" style="margin-top:10px">' + esc(S.err) + '</div>' : '') +
             '</div>' +
             '<div class="hint" style="text-align:center;margin-top:14px">Your picture and About line show next to your name in every case.</div>';
+        h += '<div class="card" style="margin-top:14px"><div class="adminlabel">Change PIN</div>' +
+            '<input id="newPin" type="password" inputmode="numeric" placeholder="New PIN (at least 4 characters)">' +
+            '<div style="height:10px"></div>' +
+            '<button class="btn gold" onclick="doChangePin()">' + (S.pinSaved ? 'PIN changed' : 'Change PIN') + '</button>' +
+            '<div class="hint" style="margin-top:8px">Use the same 6 numbers as your other sites. You will stay logged in.</div></div>';
         h += '<div class="card" style="margin-top:14px"><div class="adminlabel">Your trial record</div>';
         const rec = (S.cases || []).filter(x => x.verdict || x.phase === 'verdict' || x.phase === 'closed');
         if (!rec.length) h += '<div class="hint">No finished trials yet.</div>';
@@ -823,3 +850,4 @@ render();
 </script>
 </body>
 </html>
+
